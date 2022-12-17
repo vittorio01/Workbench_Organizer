@@ -53,7 +53,7 @@ La telecamera viene posizionata e calibrata in una posizione fissa rispetto al b
 - tipo di oggetti.
 - posizione nel piano di lavoro per ogni oggetto `(x, y, z, a)`.
 
-A sua volta, l'ODS deve inviare periodicamente messaggi contenenti informazioni sulle informazioni ricavate, che verranno ricevute e organizzate dal Workbench manager. 
+A sua volta, l'ODS deve inviare periodicamente messaggi contenenti informazioni sugli oggetti identificati, che verranno ricevute e organizzate dal Workbench manager. 
 
 ### Workbench manager 
 
@@ -70,7 +70,7 @@ L'esecuzione del WM procede in due fasi principali:
 - Fase di Servizio, in cui il sistema riceve i messaggi dal Motion Planner e muove effettivamente gli oggetti nel workspace tramite la funzione `move`. 
 
 ### Motion Planner 
-Il Motion Planner rappresenta la parte intelligente del progetto. Date le posizioni di partenza (ricvute dal WM) e dato un target che identifica la struttura finale desiderata (può essere una costruzione o semplicemente una lista di posizioni finali), il Motion Planner ha il compito di pianificare tutti i movimenti, che dovranno essere successivamente applicati dal WM e, quindi, dal robot. dato che il MP è la parte ad alto livello del progetto che comunica direttamente con l'utente, l'idea sarebbe di creare un'interfaccia CLI in che permette di scegliere il compiti da eseguire oppure permettere all'utente di inviare direttamente un target di posizioni. 
+Il Motion Planner rappresenta la parte intelligente del progetto. Date le posizioni di partenza (ricvute dal WM) e dato un target che identifica la struttura finale desiderata (può essere una costruzione o semplicemente una lista di posizioni finali), il Motion Planner ha il compito di pianificare tutti i movimenti, che dovranno essere successivamente applicati dal WM e, quindi, dal robot. dato che il MP è la parte ad alto livello del progetto che comunica direttamente con l'utente, l'idea sarebbe di creare un'interfaccia CLI che permette di scegliere il compiti da eseguire oppure chiedere all'utente di inviare direttamente un target di posizioni. 
 
 La programmazione di questo layer si basa, a seconda della sua struttura, nella risoluzione di problemi di ottimizzazione relativi allo spostamento degli oggetti (si vuole far in modo di spostare gli oggetti nel modo più veloce possibile). 
 
@@ -80,10 +80,10 @@ Il progetto, dato che viene suddiviso in più sezioni, può essere completato a 
 - Fase 1, in cui tutti i componenti del gruppo lavorano contemporaneamente allo sviluppo del source code di MSP, ODS e WM
 - Fase 2, (ancora da stabilire) in cui una/due persone lavorano al MP e il resto dei componenti all'organizzazione della docuentazione finale 
 
-Durante la prima fase, tutti i componenti del gruppo hanno il compito di tener traccia di tutti gli algoritmi/procedure utilizzate per lo sviluppo, commentandolo in modo esaustivo e creando un documento (il formato è arbitrario) in cui vengono inserite tutte le informazioni (che verranno poi elaborate nella seconda fase e studiate dagli altri componenti del gruppo). 
+Durante la prima fase, tutti i componenti del gruppo hanno il compito di tener traccia di tutti gli algoritmi/procedure utilizzate per lo sviluppo, commentando in modo esaustivo il codice e creando un documento (il formato è arbitrario) in cui vengono inserite tutte le informazioni (che verranno poi elaborate nella seconda fase e studiate dagli altri componenti del gruppo). 
 
 ## Contenuto del progetto 
-In un primo momento, il progetto GitHub viene suddiviso in quattro cartelle principali in cui ogni Layer viene sviluppato separatamente. Ogni cartella contiene obbligatoriamente una sottocartella Doc in cui viene inserita tutta la documentazione relativa (tutto il resto delle cartelle può essere utilizzato a piacimento). 
+In un primo momento, il progetto GitHub viene suddiviso in quattro cartelle principali in cui ogni Layer viene sviluppato separatamente. Ogni cartella contiene obbligatoriamente una sottocartella Doc in cui viene inserita tutta la documentazione relativa (tutto il resto della cartella può essere utilizzato a piacimento). 
 Successivamente, tutto il codice verrà trasformato in un vero e proprio progetto ROS e le documentazioni rielaborate in un unico file descrittivo. 
 
 **Tutti i componenti del gruppo non devono modificare il contenuto delle altre cartelle, per evitare problemi di sviluppo!**
