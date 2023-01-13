@@ -32,8 +32,8 @@ L'MCP agisce attivamente su tutte le dinamiche relative ai movimenti basilari de
 </p>
 
 Da un punto di vista ideale, il programma deve implementare funzioni del tipo:
-- `RobotState setEndEffector_position(x, y, z, a)`, per muovere l'end effector nella posizone `(x, y, z)` inclinato di un angolo `a` rispetto alla normale.
-- `(x,y,z,a) getEndEffector_position()`, per ricevere la posizione corrente dell'end effector (sempre nel formato `(x, y, z, a)`)
+- `RobotState setEndEffector_position(x, y, z, a, b)`, per muovere l'end effector nella posizone `(x, y, z)` inclinato rispetto alla normale di due angoli a e b (coordinate polari).
+- `(x,y,z,a,b) getEndEffector_position()`, per ricevere la posizione corrente dell'end effector (sempre nel formato `(x, y, z, a, b)`)
 - `GripState get_gripState()`, per capire lo stato dell'end effector
 - `GripState set_gripState()`, per modificare lo stato dell'end effector
 
@@ -51,7 +51,7 @@ La posizione degli oggetti viene identificata utilizzando delle coordinate speci
 La telecamera viene posizionata e calibrata in una posizione fissa rispetto al banco di lavoro e invia periodicamente immagini da analizzare. L'OSD deve quindi provvedere ad analizzare le immagini ricevute restituendo informazioni tra cui:
 - Numero di oggetti nel workbench.
 - tipo di oggetti.
-- posizione nel piano di lavoro per ogni oggetto `(x, y, z, a)`.
+- posizione nel piano di lavoro per ogni oggetto `(x, y, z, a, b)`.
 
 A sua volta, l'ODS deve inviare periodicamente messaggi contenenti informazioni sugli oggetti identificati, che verranno ricevute e organizzate dal Workbench manager. 
 
@@ -63,7 +63,7 @@ Il Workbench Manager ha una duplice funzione:
 
 Da un punto di vista pratico, il WM è un programma basato sulla programmazione ad oggetti che genera una rappresentazione dello spazio e si interfaccia con ODS e MCP per la gestione di tutti i suoi elementi. Se da un lato riceve tutti i messaggi dall'ODS per aggiungere, rimuovere, verificare i movimenti degli oggetti, dall'altro utilizza la MCP per cambiare la loro posizione all'interno dello spazio di lavoro. Il WM deve quindi implementare le seguenti funzionalità:
 - creare una lista di oggetti in cui vengono inserite informazioni relative al tipo, alla forma, alla posizione di essi.
-- implementare la funzione `ObjectState move(Object o, x, y, z, a)`, per muovere gli oggetti all'interno del workspace. Questa funzione verrà successivamente richiamata dal Motion Planner tramite messaggi di ROS, che utilizzerà il robot per spostare gli oggetti.
+- implementare la funzione `ObjectState move(Object o, x, y, z, a, b)`, per muovere gli oggetti all'interno del workspace. Questa funzione verrà successivamente richiamata dal Motion Planner tramite messaggi di ROS, che utilizzerà il robot per spostare gli oggetti.
 
 L'esecuzione del WM procede in due fasi principali:
 - Fase di inizializzazione, in cui il sistema provvede all'inizializzazione della lista degli oggetti presenti nel workspace e comunica al Motion Planner tutte le infomazioni che è riuscito a ricavare (sempre tramite messaggi di ROS)
