@@ -9,7 +9,6 @@ project(manipulator_control_program)
 ## is used, also find other catkin packages
 link_directories(/usr/local/include)
 find_package(catkin REQUIRED COMPONENTS
-  Eigen3
   roscpp
   rospy
   std_msgs
@@ -48,10 +47,13 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-#add_message_files(
-#   FILES
-#  
-#)
+add_message_files(
+  DIRECTORY 
+  msg 
+  FILES
+
+  
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -71,7 +73,6 @@ find_package(catkin REQUIRED COMPONENTS
 generate_messages(
   DEPENDENCIES
   std_msgs
-  sensor_msgs
 )
 
 ################################################
@@ -106,7 +107,11 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES manipulator_control_program
-#  CATKIN_DEPENDS eigen roscpp rospy std_msgs
+   CATKIN_DEPENDS 
+   Eigen3 
+   roscpp 
+   rospy 
+   std_msgs
 #  DEPENDS system_lib
 )
 
@@ -135,13 +140,14 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/manipulator_control_program_node.cpp)
+add_executable(manipulator_control_program_node src/manipulator_control_program_node.cpp)
+target_link_libraries(manipulator_control_program_node ${catkin_LIBRARIES})
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
 ## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
+#set_target_properties(${PROJECT_NAME}_node PROPERTIES manipulator_control_program node PREFIX "")
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
@@ -151,6 +157,11 @@ include_directories(
 # target_link_libraries(${PROJECT_NAME}_node
 #   ${catkin_LIBRARIES}
 # )
+
+
+install(DIRECTORY launch/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+  PATTERN ".svn" EXCLUDE)
 
 #############
 ## Install ##
