@@ -1,6 +1,7 @@
 <?xml version="1.0" ?>
 <launch>
     <arg name="world_name" value="tavolo_brick.world"/>
+    <arg name="use_torque_control" value="false"/>
     <include file="$(find ros_impedance_controller)/launch/ros_impedance_controller_ur5.launch" pass_all_args="true"/>
     <node name="manipulator_control_program_node" pkg="manipulator_control_program" type="manipulator_control_program_node" required="true" output="screen"/>
 </launch>

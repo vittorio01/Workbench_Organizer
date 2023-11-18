@@ -6,6 +6,8 @@
 #include <std_msgs/Float64MultiArray.h>
 #include <sstream>
 
+#include "ur5/UR5.h"
+#include "ur5/UR5.cpp"
 #include "locosim_robot_interface/locosim_robot_interface.h"
 #include "locosim_robot_interface/locosim_robot_interface.cpp"
 
@@ -22,26 +24,31 @@ int main(int argc, char** argv) {
     Locosim_robot_interface interface;
     interface.initialize(node);
 
+    UR5 manipulator;
 
-    ros::Rate loop_rate(2000);
-    while (ros::ok()) {
-        cout << "[";
-        for (int i=0;i<5;i++) {
-            cout << interface.getPosition(i) << ", ";
-        }
-        cout << "]"<<endl;
+    cout << manipulator <<endl;
+
+    ros::Rate loop_rate(2);
+    while (ros::ok() && !interface.getSystemStatus()) {
         ros::spinOnce();
         loop_rate.sleep();
     }
+
     
+    if (!ros::ok()) return 0;
 
+    end_effector_coordinates end_effector;
 
-
-
-    //vector3d base(0,0,0);
-    //manipulator_ur5 robot(base);
-    //cout << robot <<endl;
-    
+    JointVector v;
+    v << M_PI_2, -M_PI_4, M_PI_2, 0, 0, M_PI;
+    interface.setPosition(v);
+    while (ros::ok()) {
+        
+        cout << interface << endl;
+        cout << "end_effector_position: "<<manipulator.compute_direct_kinematics(interface.getPositions()).position.transpose()<<endl<< endl;
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
     return 0;
 }
 
