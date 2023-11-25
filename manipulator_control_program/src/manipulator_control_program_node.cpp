@@ -40,12 +40,16 @@ int main(int argc, char** argv) {
     end_effector_coordinates end_effector;
 
     JointVector v;
-    v << M_PI_2, -M_PI_4, M_PI_2, 0, 0, M_PI;
+    v << M_PI_2, -M_PI_4, M_PI_4, M_PI_2, M_PI_2, -M_PI_4;
+    //v << 0,0,0,0,0,0;
     interface.setPosition(v);
     while (ros::ok()) {
         
         cout << interface << endl;
-        cout << "end_effector_position: "<<manipulator.compute_direct_kinematics(interface.getPositions()).position.transpose()<<endl<< endl;
+        cout << "end_effector_position: "<<manipulator.compute_direct_kinematics(interface.getPositions()).position.transpose()<<endl;
+        cout << "orientation1: "<< manipulator.compute_direct_kinematics(interface.getPositions()).orientation1.transpose()<< endl;
+        cout << "orientation2; "<<manipulator.compute_direct_kinematics(interface.getPositions()).orientation2.transpose()<<endl;
+        cout << endl;
         ros::spinOnce();
         loop_rate.sleep();
     }

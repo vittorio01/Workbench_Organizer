@@ -21,33 +21,60 @@ end_effector_coordinates UR5::compute_direct_kinematics(const VectorXd &jointAng
               0,1,0,0,
               0,0,1,0,
               0,0,0,1;
-              
+    vector4d base_position(0,0,0,1);
+
     for (int i=0;i<(JOINT_NUMBER);i++) {
         matrix=matrix*(joint_list[i]->get_transformation_matrix(jointAngles(i)));
     }
-    vector4d base_position(0,0,0,1);
     base_position=matrix*base_position;
-    
-    vector4d pitch(1,0,0,1);
-    pitch=matrix*pitch;
 
-    vector4d roll(0,1,0,1);
-    roll=matrix*roll;
-
-    vector4d yaw(0,0,1,1);
-    yaw=matrix*yaw;
-    
     end_effector_coordinates coordinates;
     coordinates.position(0)=base_position(0);
     coordinates.position(1)=base_position(1);
     coordinates.position(2)=base_position(2);
-    coordinates.orientation(0)=pitch(0);
-    coordinates.orientation(1)=roll(1);
-    coordinates.orientation(2)=yaw(2);
+    
+    if (matrix(3,1)==1 || matrix(3,1)==-1) {
+        coordinates.orientation1(0)=0;
+        if (matrix(3,1)==-1) {
+            coordinates.orientation1(1)=M_PI_2;
+            coordinates.orientation1(2)=atan2(matrix(1,2),matrix(1,3));
+        } else {
+            coordinates.orientation1(1)=-M_PI_2;
+            coordinates.orientation1(2)=atan2(matrix(1,2),matrix(1,3));
+        }
+        coordinates.orientation2(0)=coordinates.orientation1(0);
+        coordinates.orientation2(1)=coordinates.orientation1(1);
+        coordinates.orientation2(2)=coordinates.orientation1(2);
+    } else {
+        coordinates.orientation1(0)=atan2(matrix(2,1),matrix(1,1));
+        coordinates.orientation1(1)=atan2(-matrix(3,1),sqrt((matrix(3,2)*matrix(3,2))+(matrix(3,3)*matrix(3,3))));
+        coordinates.orientation1(2)=atan2(matrix(3,2),matrix(3,3));
+
+        coordinates.orientation2(0)=atan2(-matrix(2,1),-matrix(1,1));
+        coordinates.orientation2(1)=atan2(-matrix(3,1),-sqrt((matrix(3,2)*matrix(3,2))+(matrix(3,3)*matrix(3,3))));
+        coordinates.orientation2(2)=atan2(-matrix(3,2),-matrix(3,3));
+    }
+    
+
     return coordinates;
 }
 
-
+void UR5::print_direct_transform(const VectorXd &jointAngles) {
+    transformationMatrix currentTransform;
+    vector4d currentPosition;
+    for (int i=0;i<(JOINT_NUMBER);i++) {
+        currentTransform << 1,0,0,0,
+                            0,1,0,0,
+                            0,0,1,0,
+                            0,0,0,1;
+        currentPosition << 0,0,0,1;
+        for (int j=0;j<=i;j++) {
+            currentTransform=currentTransform*(joint_list[j]->get_transformation_matrix(jointAngles(j)));
+        }
+        currentPosition=currentTransform*currentPosition;
+        cout << joint_list[i]->get_name()<<": "<<currentPosition(0)<<", "<<currentPosition(1)<<", "<<currentPosition(2)<<endl;
+    }
+}
 
 ostream &operator<<(ostream &ostream, UR5 &manipulator) {
     ostream << "Manipulator type: UR5" << endl;
@@ -57,3 +84,4 @@ ostream &operator<<(ostream &ostream, UR5 &manipulator) {
     }
     return ostream;
 }
+

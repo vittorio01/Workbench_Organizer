@@ -23,7 +23,7 @@ using Eigen::VectorXd;
 
 #define JOINT_NUMBER 6
 
-#define D0 -0.163
+#define D0 0.163
 #define A0 0
 
 #define D1 0
@@ -58,9 +58,9 @@ using Eigen::VectorXd;
 #define BASE_JOINT_ORIENTATION M_PI
 #define SHOULDER_JOINT_ORIENTATION M_PI_2
 #define ELBOW_JOINT_ORIENTATION 0
-#define WRIST1_JOINT_ORIENTATION M_PI_2
-#define WRIST2_JOINT_ORIENTATION -M_PI_2
-#define END_EFFECTOR_JOINT_ORIENTATION 0
+#define WRIST1_JOINT_ORIENTATION 0 
+#define WRIST2_JOINT_ORIENTATION M_PI_2
+#define END_EFFECTOR_JOINT_ORIENTATION -M_PI_2
 
 #define BASE_JOINT_RANGE -M_2_PI,M_2_PI
 #define SHOULDER_JOINT_RANGE -M_PI,M_PI
@@ -76,7 +76,8 @@ typedef Eigen::Vector4f vector4d;
 typedef Eigen::Vector2f vector2d;
 
 typedef struct end_effector_coordinates {
-    vector3d orientation;
+    vector3d orientation1;
+    vector3d orientation2;
     vector3d position;
 } end_effector_coordinates;
 
@@ -89,7 +90,7 @@ public:
     UR5();
     ~UR5();
     end_effector_coordinates compute_direct_kinematics(const VectorXd &jointAngles);
-    
+    void print_direct_transform (const VectorXd &jointAngles);
     friend ostream &operator<<(ostream &ostream, UR5 &manipulator);
 };
 
