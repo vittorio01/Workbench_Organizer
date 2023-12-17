@@ -4,6 +4,7 @@
 #include <iostream>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Geometry>
 #include "joints/revolute_joint.h"
 #include "joints/revolute_joint.cpp"
 #include <cmath>
@@ -38,7 +39,7 @@ using Eigen::VectorXd;
 #define D4 0.100
 #define A4 0
 
-#define D5 0.100    
+#define D5 0.100+0.100
 #define A5 0
 
 #define BASE_JOINT_NAME "Base joint"
@@ -69,18 +70,23 @@ using Eigen::VectorXd;
 #define WRIST2_JOINT_RANGE -M_2_PI,M_2_PI
 #define END_EFFECTOR_JOINT_RANGE -M_2_PI,M_2_PI
 
-typedef Eigen::Vector3f vector3d;
-typedef Eigen::Matrix3f rotationalMatrix;
-typedef Eigen::Matrix4f transformationMatrix;
-typedef Eigen::Vector4f vector4d;
-typedef Eigen::Vector2f vector2d;
+#define BASE_JOINT_RADUS 0.060     
+#define SHOULDER_JOINT_RADIUS 0.054  
+#define ELBOW_JOINT_RADIUS 0.060     
+#define WRIST1_JOINT_RADIUS 0.040   
+#define END_EFFECTOR_JOINT_RADOUS 0.045    
 
-typedef struct end_effector_coordinates {
-    vector3d orientation1;
-    vector3d orientation2;
-    vector3d position;
-} end_effector_coordinates;
+typedef Eigen::Matrix<double,3,3> rotationalMatrix;
+typedef Eigen::Matrix<double,4,4> transformationMatrix;
+typedef Eigen::Matrix<double,6,6> jacobianMatrix;
+typedef Eigen::Matrix<double,6,1> jointVelocityVector;
+typedef Eigen::Matrix<double,6,1> pointVelocityVector;
+typedef Eigen::Matrix<double,3,1> pointVector;
+typedef Eigen::Matrix<double,JOINT_NUMBER,1> jointVector; 
 
+typedef Eigen::Matrix<double,6,Eigen::Dynamic> trajectoryJointMatrix;
+typedef Eigen::Matrix<double,6,Eigen::Dynamic> trajectoryEndEffectorMatrix;
+typedef Eigen::Matrix<double,6,1> trajectoryPointVector;
 class UR5
 {
 private:
@@ -89,8 +95,15 @@ public:
     const unsigned short joints_number=JOINT_NUMBER;
     UR5();
     ~UR5();
-    end_effector_coordinates compute_direct_kinematics(const VectorXd &jointAngles);
-    void print_direct_transform (const VectorXd &jointAngles);
+    trajectoryJointMatrix compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const double requiredTime);
+    trajectoryPointVector get_end_effector_position(const jointVector &jointAngles);
+
+    transformationMatrix compute_direct_kinematics(const jointVector &jointAngles,const int end_joint_number);
+    jacobianMatrix compute_direct_differential_kinematics(const jointVector &jointAngles);
+    jointVelocityVector compute_joints_velocities(const pointVelocityVector &end_joint_velocity,const jointVector &currentJointAngles, const double precision);
+    
+    
+    void print_direct_transform (const jointVector &jointAngles);
     friend ostream &operator<<(ostream &ostream, UR5 &manipulator);
 };
 

@@ -15,62 +15,127 @@ UR5::~UR5() {
     }
 }
 
-end_effector_coordinates UR5::compute_direct_kinematics(const VectorXd &jointAngles) {
+transformationMatrix UR5::compute_direct_kinematics(const jointVector &jointAngles,const int end_joint_number=JOINT_NUMBER) {
     transformationMatrix matrix;
     matrix << 1,0,0,0,
               0,1,0,0,
               0,0,1,0,
               0,0,0,1;
-    vector4d base_position(0,0,0,1);
-
-    for (int i=0;i<(JOINT_NUMBER);i++) {
+    for (int i=0;i<end_joint_number;i++) {
         matrix=matrix*(joint_list[i]->get_transformation_matrix(jointAngles(i)));
     }
-    base_position=matrix*base_position;
-
-    end_effector_coordinates coordinates;
-    coordinates.position(0)=base_position(0);
-    coordinates.position(1)=base_position(1);
-    coordinates.position(2)=base_position(2);
-    
-    if (matrix(3,1)==1 || matrix(3,1)==-1) {
-        coordinates.orientation1(0)=0;
-        if (matrix(3,1)==-1) {
-            coordinates.orientation1(1)=M_PI_2;
-            coordinates.orientation1(2)=atan2(matrix(1,2),matrix(1,3));
-        } else {
-            coordinates.orientation1(1)=-M_PI_2;
-            coordinates.orientation1(2)=atan2(matrix(1,2),matrix(1,3));
-        }
-        coordinates.orientation2(0)=coordinates.orientation1(0);
-        coordinates.orientation2(1)=coordinates.orientation1(1);
-        coordinates.orientation2(2)=coordinates.orientation1(2);
-    } else {
-        coordinates.orientation1(0)=atan2(matrix(2,1),matrix(1,1));
-        coordinates.orientation1(1)=atan2(-matrix(3,1),sqrt((matrix(3,2)*matrix(3,2))+(matrix(3,3)*matrix(3,3))));
-        coordinates.orientation1(2)=atan2(matrix(3,2),matrix(3,3));
-
-        coordinates.orientation2(0)=atan2(-matrix(2,1),-matrix(1,1));
-        coordinates.orientation2(1)=atan2(-matrix(3,1),-sqrt((matrix(3,2)*matrix(3,2))+(matrix(3,3)*matrix(3,3))));
-        coordinates.orientation2(2)=atan2(-matrix(3,2),-matrix(3,3));
-    }
-    
-
-    return coordinates;
+    return matrix;
 }
 
-void UR5::print_direct_transform(const VectorXd &jointAngles) {
-    transformationMatrix currentTransform;
-    vector4d currentPosition;
-    for (int i=0;i<(JOINT_NUMBER);i++) {
-        currentTransform << 1,0,0,0,
-                            0,1,0,0,
-                            0,0,1,0,
-                            0,0,0,1;
-        currentPosition << 0,0,0,1;
-        for (int j=0;j<=i;j++) {
-            currentTransform=currentTransform*(joint_list[j]->get_transformation_matrix(jointAngles(j)));
+trajectoryPointVector UR5::get_end_effector_position(const jointVector &jointAngles) {
+    trajectoryPointVector position;
+    transformationMatrix directTransformation=compute_direct_kinematics(jointAngles);
+    position(0)=directTransformation(0,3);
+    position(1)=directTransformation(1,3);
+    position(2)=directTransformation(2,3);
+    if (directTransformation(2,0)!= 1 && directTransformation(2,0)!=-1) {
+        position(4)=-asin(directTransformation(2,0));
+        position(3)=atan2((directTransformation(2,1)/(cos(position(4)))),((directTransformation(2,2)/(cos(position(4))))));
+        position(5)=atan2((directTransformation(1,0)/(cos(position(4)))),((directTransformation(0,0)/(cos(position(4))))));
+    } else {
+        position(5)=0;
+        position(3)=atan2(directTransformation(0,1),directTransformation(0,2));
+        if (directTransformation(2,0)==-1) {
+           position(4)=M_PI_2;
+        } else {
+           position(4)=-M_PI_2;
         }
+    }
+
+
+    return position;
+
+}
+
+trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const double requiredTime) {
+    trajectoryEndEffectorMatrix end_effector_trajectory;
+    trajectoryEndEffectorMatrix end_effector_velocities;
+    int steps=400;
+    double errorWeight=0.01;
+
+    double step_width=requiredTime/((double)(steps));
+    trajectoryPointVector startPosition=get_end_effector_position(jointAngles);
+    trajectoryPointVector a=(endPosition-startPosition)*(-2/pow(requiredTime,3));
+    trajectoryPointVector b=(endPosition-startPosition)*(3/(pow(requiredTime,2)));
+    
+    trajectoryJointMatrix jointTrajectory;
+    jointTrajectory.resize(6,steps);
+    end_effector_trajectory.resize(6,steps);
+    end_effector_velocities.resize(6,steps);
+    for (int i=0;i<steps;i++) {
+        end_effector_trajectory.col(i)=(a*pow((i*step_width),3))+(b*pow((i*step_width),2))+startPosition;
+        end_effector_velocities.col(i)=(a*(3*pow(i*step_width,2)))+(b*(2*(i*step_width)));
+    }
+
+    jointVector cumulativePos=jointAngles; 
+    trajectoryPointVector error;
+    pointVelocityVector velocity;
+    for (int i=0;i<steps;i++) {
+        error=(end_effector_trajectory.col(i)-get_end_effector_position(cumulativePos))*errorWeight;
+        cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i),cumulativePos,0)*step_width);
+        jointTrajectory.col(i)=cumulativePos;
+    }
+    return jointTrajectory;
+}
+
+jointVelocityVector UR5::compute_joints_velocities(const pointVelocityVector &end_joint_velocity,const jointVector &currentJointAngles,const double precision=0) {
+    jacobianMatrix jacobian=compute_direct_differential_kinematics(currentJointAngles);
+    //jacobianMatrix jacobianTranspose=jacobian.transpose();
+    //jacobian = jacobianTranspose*((jacobian*jacobianTranspose)+(jacobianMatrix::Identity()*precision));
+    jacobianMatrix angleTransformationMatrix;
+    angleTransformationMatrix << 
+        1,0,0,0,0,0,
+        0,1,0,0,0,0,
+        0,0,1,0,0,0,
+        0,0,0,(cos(end_joint_velocity(4))*cos(end_joint_velocity(5))),(-sin(end_joint_velocity(5))),0,
+        0,0,0,(cos(end_joint_velocity(4)*sin(end_joint_velocity(5)))),cos(end_joint_velocity(5)),0,
+        0,0,0,(-sin(end_joint_velocity(4))),0,1;
+    jointVelocityVector v=(angleTransformationMatrix.inverse()*jacobian.inverse())*end_joint_velocity;
+    return v;
+}
+
+
+jacobianMatrix UR5::compute_direct_differential_kinematics(const jointVector &jointAngles) {
+    jacobianMatrix jacobian;
+    transformationMatrix completeDirectKinematics=compute_direct_kinematics(jointAngles);
+
+    transformationMatrix partialDirectKinematics;
+    Eigen::Matrix<double,3,1> rotCol;
+    pointVector diffKinematics;
+    for (int i=0;i<JOINT_NUMBER;i++) {
+        partialDirectKinematics=compute_direct_kinematics(jointAngles,(i+1));
+        
+        jacobian(3,i)=partialDirectKinematics(0,2);
+        jacobian(4,i)=partialDirectKinematics(1,2);
+        jacobian(5,i)=partialDirectKinematics(2,2);
+
+        rotCol(0)=partialDirectKinematics(0,2);
+        rotCol(1)=partialDirectKinematics(1,2);
+        rotCol(2)=partialDirectKinematics(2,2);
+        diffKinematics(0)=completeDirectKinematics(0,3)-partialDirectKinematics(0,3);
+        diffKinematics(1)=completeDirectKinematics(1,3)-partialDirectKinematics(1,3);
+        diffKinematics(2)=completeDirectKinematics(2,3)-partialDirectKinematics(2,3);
+        rotCol=rotCol.cross(diffKinematics);
+        jacobian(0,i)=rotCol(0);
+        jacobian(1,i)=rotCol(1);
+        jacobian(2,i)=rotCol(2);
+    }
+
+
+    return jacobian;
+}
+
+void UR5::print_direct_transform(const jointVector &jointAngles) {
+    transformationMatrix currentTransform;
+    Eigen::Matrix<double,4,1> currentPosition;
+    for (int i=0;i<(JOINT_NUMBER);i++) {
+        currentTransform=compute_direct_kinematics(jointAngles,i);
+        currentPosition << 0,0,0,1;
         currentPosition=currentTransform*currentPosition;
         cout << joint_list[i]->get_name()<<": "<<currentPosition(0)<<", "<<currentPosition(1)<<", "<<currentPosition(2)<<endl;
     }

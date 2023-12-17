@@ -11,11 +11,9 @@ using namespace std;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
-typedef Eigen::Vector3f vector3d;
-typedef Eigen::Matrix3f rotationalMatrix;
-typedef Eigen::Matrix4f transformationMatrix;
-typedef Eigen::Vector4f vector4d;
-typedef Eigen::Vector2f vector2d;
+typedef Eigen::Matrix<double,3,3> rotationalMatrix;
+typedef Eigen::Matrix<double,4,4> transformationMatrix;
+typedef Eigen::Matrix<double,3,1> pointVector;
 
 class revolute_joint{
     private: 

@@ -12,8 +12,6 @@
 #include "locosim_robot_interface/locosim_robot_interface.cpp"
 
 using namespace std;
-using Eigen::MatrixXd;
-using Eigen::VectorXd;
 
 int main(int argc, char** argv) {
     cout << "started manipulator_control_program ROS node\n" ;
@@ -28,7 +26,7 @@ int main(int argc, char** argv) {
 
     cout << manipulator <<endl;
 
-    ros::Rate loop_rate(2);
+    ros::Rate loop_rate(100);
     while (ros::ok() && !interface.getSystemStatus()) {
         ros::spinOnce();
         loop_rate.sleep();
@@ -36,20 +34,26 @@ int main(int argc, char** argv) {
 
     
     if (!ros::ok()) return 0;
+    jointVector homePosition; 
+    homePosition << 1.2,-1.5,1.8,1,-1.5,-1;
+    interface.setPosition(homePosition);
 
-    end_effector_coordinates end_effector;
-
-    JointVector v;
-    v << M_PI_2, -M_PI_4, M_PI_4, M_PI_2, M_PI_2, -M_PI_4;
-    //v << 0,0,0,0,0,0;
-    interface.setPosition(v);
+    trajectoryPointVector targetPosition;
+    targetPosition << 0.3,0.3,-0.6,1.2,0,0;
+    
+    trajectoryJointMatrix trajectory=manipulator.compute_trajectory(targetPosition,homePosition,10);
+    int step=-100;
     while (ros::ok()) {
-        
-        cout << interface << endl;
-        cout << "end_effector_position: "<<manipulator.compute_direct_kinematics(interface.getPositions()).position.transpose()<<endl;
-        cout << "orientation1: "<< manipulator.compute_direct_kinematics(interface.getPositions()).orientation1.transpose()<< endl;
-        cout << "orientation2; "<<manipulator.compute_direct_kinematics(interface.getPositions()).orientation2.transpose()<<endl;
-        cout << endl;
+        if (step>=0 && step<trajectory.cols()) {
+            cout <<"current position: "<< manipulator.get_end_effector_position(interface.getPositions()).transpose()<< endl;
+            cout << "current angles: "<<interface.getPositions().transpose() << endl;
+            //interface.setPosition(trajectory.col(step));
+            cout << "new position: "<<manipulator.get_end_effector_position(trajectory.col(step)).transpose()<<endl;
+            cout << "new angles: "<<trajectory.col(step).transpose() << endl;
+            cout << "--------------------------------------------------"<<endl;
+            
+        }
+        step=step+1;
         ros::spinOnce();
         loop_rate.sleep();
     }
