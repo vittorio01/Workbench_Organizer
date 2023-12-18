@@ -39,7 +39,7 @@ using Eigen::VectorXd;
 #define D4 0.100
 #define A4 0
 
-#define D5 0.100+0.100
+#define D5 0.100
 #define A5 0
 
 #define BASE_JOINT_NAME "Base joint"
@@ -76,6 +76,9 @@ using Eigen::VectorXd;
 #define WRIST1_JOINT_RADIUS 0.040   
 #define END_EFFECTOR_JOINT_RADOUS 0.045    
 
+#define TRAJECTORY_STEP_NUMBER      400
+#define TRAJECTORY_ERROR_WEIGHT     1
+
 typedef Eigen::Matrix<double,3,3> rotationalMatrix;
 typedef Eigen::Matrix<double,4,4> transformationMatrix;
 typedef Eigen::Matrix<double,6,6> jacobianMatrix;
@@ -100,7 +103,7 @@ public:
 
     transformationMatrix compute_direct_kinematics(const jointVector &jointAngles,const int end_joint_number);
     jacobianMatrix compute_direct_differential_kinematics(const jointVector &jointAngles);
-    jointVelocityVector compute_joints_velocities(const pointVelocityVector &end_joint_velocity,const jointVector &currentJointAngles, const double precision);
+    jointVelocityVector compute_joints_velocities(const pointVelocityVector &end_joint_velocity,const jointVector &currentJointAngles);
     
     
     void print_direct_transform (const jointVector &jointAngles);

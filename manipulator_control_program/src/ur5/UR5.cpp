@@ -55,8 +55,8 @@ trajectoryPointVector UR5::get_end_effector_position(const jointVector &jointAng
 trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const double requiredTime) {
     trajectoryEndEffectorMatrix end_effector_trajectory;
     trajectoryEndEffectorMatrix end_effector_velocities;
-    int steps=400;
-    double errorWeight=0.01;
+    int steps=TRAJECTORY_STEP_NUMBER;
+    double errorWeight=TRAJECTORY_ERROR_WEIGHT;
 
     double step_width=requiredTime/((double)(steps));
     trajectoryPointVector startPosition=get_end_effector_position(jointAngles);
@@ -77,28 +77,17 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
     pointVelocityVector velocity;
     for (int i=0;i<steps;i++) {
         error=(end_effector_trajectory.col(i)-get_end_effector_position(cumulativePos))*errorWeight;
-        cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i),cumulativePos,0)*step_width);
+        cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i),cumulativePos)*step_width);
         jointTrajectory.col(i)=cumulativePos;
     }
     return jointTrajectory;
 }
 
-jointVelocityVector UR5::compute_joints_velocities(const pointVelocityVector &end_joint_velocity,const jointVector &currentJointAngles,const double precision=0) {
+jointVelocityVector UR5::compute_joints_velocities(const pointVelocityVector &end_joint_velocity,const jointVector &currentJointAngles) {
     jacobianMatrix jacobian=compute_direct_differential_kinematics(currentJointAngles);
-    //jacobianMatrix jacobianTranspose=jacobian.transpose();
-    //jacobian = jacobianTranspose*((jacobian*jacobianTranspose)+(jacobianMatrix::Identity()*precision));
-    jacobianMatrix angleTransformationMatrix;
-    angleTransformationMatrix << 
-        1,0,0,0,0,0,
-        0,1,0,0,0,0,
-        0,0,1,0,0,0,
-        0,0,0,(cos(end_joint_velocity(4))*cos(end_joint_velocity(5))),(-sin(end_joint_velocity(5))),0,
-        0,0,0,(cos(end_joint_velocity(4)*sin(end_joint_velocity(5)))),cos(end_joint_velocity(5)),0,
-        0,0,0,(-sin(end_joint_velocity(4))),0,1;
-    jointVelocityVector v=(angleTransformationMatrix.inverse()*jacobian.inverse())*end_joint_velocity;
+    jointVelocityVector v=jacobian.inverse()*end_joint_velocity;
     return v;
 }
-
 
 jacobianMatrix UR5::compute_direct_differential_kinematics(const jointVector &jointAngles) {
     jacobianMatrix jacobian;
@@ -125,9 +114,19 @@ jacobianMatrix UR5::compute_direct_differential_kinematics(const jointVector &jo
         jacobian(1,i)=rotCol(1);
         jacobian(2,i)=rotCol(2);
     }
-
-
-    return jacobian;
+    jacobianMatrix angleTransformationMatrix;
+    trajectoryPointVector end_effector_position=get_end_effector_position(jointAngles);
+    double psi=end_effector_position(3);
+    double theta=end_effector_position(4);
+    double phi=end_effector_position(5);
+    angleTransformationMatrix << 
+        1,0,0,0,0,0,
+        0,1,0,0,0,0,
+        0,0,1,0,0,0,
+        0,0,0,(cos(theta)*cos(phi)),(-sin(phi)),0,
+        0,0,0,(cos(theta)*sin(phi)),cos(phi),0,
+        0,0,0,(-sin(theta)),0,1;
+    return angleTransformationMatrix.inverse()*jacobian;
 }
 
 void UR5::print_direct_transform(const jointVector &jointAngles) {
