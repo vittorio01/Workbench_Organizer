@@ -1,50 +1,6 @@
 #include "revolute_joint.h"
 
 transformationMatrix revolute_joint::get_transformation_matrix(const double JointAngle) {
-    /*
-    transformationMatrix r1;
-    r1(0,0)=1;
-    r1(0,1)=0;
-    r1(0,2)=0;
-    r1(0,3)=joint_link_a;
-
-    r1(1,0)=0;
-    r1(1,1)=cos(joint_orientation);
-    r1(1,2)=-sin(joint_orientation);
-    r1(1,3)=0;
-
-    r1(2,0)=0;
-    r1(2,1)=sin(joint_orientation);
-    r1(2,2)=cos(joint_orientation);
-    r1(2,3)=0;
-
-    r1(3,0)=0;
-    r1(3,1)=0;
-    r1(3,2)=0;
-    r1(3,3)=1;    
-
-    transformationMatrix r2;
-    r2(0,0)=cos(JointAngle);
-    r2(0,1)=-sin(JointAngle);
-    r2(0,2)=0;
-    r2(0,3)=0;
-
-    r2(1,0)=sin(JointAngle);
-    r2(1,1)=cos(JointAngle);
-    r2(1,2)=0;
-    r2(1,3)=0;
-
-    r2(2,0)=0;
-    r2(2,1)=0;
-    r2(2,2)=1;
-    r2(2,3)=joint_link_d;
-
-    r2(3,0)=0;
-    r2(3,1)=0;
-    r2(3,2)=0;
-    r2(3,3)=1;
-    */
-    
     transformationMatrix t;
     t <<    cos(JointAngle), (-sin(JointAngle)), 0, joint_link_a,
             (cos(joint_orientation)*sin(JointAngle)), (cos(joint_orientation)*cos(JointAngle)), (-sin(joint_orientation)), (-joint_link_d*sin(joint_orientation)),

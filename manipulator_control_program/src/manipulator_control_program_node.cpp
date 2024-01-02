@@ -11,6 +11,11 @@
 #include "locosim_robot_interface/locosim_robot_interface.h"
 #include "locosim_robot_interface/locosim_robot_interface.cpp"
 
+#define NODE_FREQUENCY 200
+
+#define UR5_SPAWN_POSITION      0.5,0.35,1.8
+#define UR5_SPAWN_ORIENTATION   0,0,0
+
 using namespace std;
 
 int main(int argc, char** argv) {
@@ -22,11 +27,11 @@ int main(int argc, char** argv) {
     Locosim_robot_interface interface;
     interface.initialize(node);
 
-    UR5 manipulator;
+    UR5 manipulator(pointVector(UR5_SPAWN_POSITION),Eigen::Matrix<double,3,1>(UR5_SPAWN_ORIENTATION));
 
     cout << manipulator <<endl;
 
-    ros::Rate loop_rate(1000);
+    ros::Rate loop_rate(NODE_FREQUENCY);
     while (ros::ok() && !interface.getSystemStatus()) {
         ros::spinOnce();
         loop_rate.sleep();
@@ -40,10 +45,12 @@ int main(int argc, char** argv) {
     interface.setPosition(homePosition);
     trajectoryPointVector startPosition=manipulator.get_end_effector_position(homePosition);
     trajectoryPointVector targetPosition;
-    targetPosition << -0.82,0.23,-0.06,3.14,0,1;// 0.16,0.24,-0.68,3.14,0,1;
+    targetPosition << 0.82,0.57,1.10,3.14,0,0; //0.16,0.24,-0.68,3.14,0,1;
     
-    trajectoryJointMatrix trajectory=manipulator.compute_trajectory(targetPosition,homePosition,5);
-    int step=-1000;
+    trajectoryJointMatrix trajectory=manipulator.compute_trajectory(targetPosition,homePosition,2,NODE_FREQUENCY);
+    targetPosition << 0.82,0.57,0.895,3.14,0,0;
+    trajectoryJointMatrix trajectory2=manipulator.compute_trajectory(targetPosition,trajectory.col(trajectory.cols()-1),5l,NODE_FREQUENCY);
+    int step=-NODE_FREQUENCY;
     while (ros::ok()) {
         if (step>=0 && step<trajectory.cols()) {
             cout <<"current position: "<< manipulator.get_end_effector_position(interface.getPositions()).transpose()<< endl;
@@ -53,6 +60,15 @@ int main(int argc, char** argv) {
             cout << "new angles: "<<trajectory.col(step).transpose() << endl;
             cout << "--------------------------------------------------"<<endl;
             
+        } else {
+            if (step>=trajectory.cols() && step <(trajectory.cols()+trajectory2.cols())) {
+                cout <<"current position: "<< manipulator.get_end_effector_position(interface.getPositions()).transpose()<< endl;
+                cout << "current angles: "<<interface.getPositions().transpose() << endl;
+                interface.setPosition(trajectory2.col((step-trajectory.cols())));
+                cout << "new position: "<<manipulator.get_end_effector_position(trajectory2.col((step-trajectory.cols()))).transpose()<<endl;
+                cout << "new angles: "<<trajectory2.col((step-trajectory.cols())).transpose() << endl;
+                cout << "--------------------------------------------------"<<endl;
+            }
         }
         step=step+1;
         ros::spinOnce();

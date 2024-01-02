@@ -39,7 +39,7 @@ using Eigen::VectorXd;
 #define D4 0.100
 #define A4 0
 
-#define D5 0.100
+#define D5 0.100+0.115
 #define A5 0
 
 #define BASE_JOINT_NAME "Base joint"
@@ -76,7 +76,7 @@ using Eigen::VectorXd;
 #define WRIST1_JOINT_RADIUS 0.040   
 #define END_EFFECTOR_JOINT_RADOUS 0.045    
 
-#define TRAJECTORY_STEP_NUMBER      400
+#define TRAJECTORY_STEP_NUMBER      10000
 #define TRAJECTORY_ERROR_WEIGHT     1
 
 typedef Eigen::Matrix<double,3,3> rotationalMatrix;
@@ -96,15 +96,17 @@ private:
     revolute_joint *joint_list[6];
 public:
     const unsigned short joints_number=JOINT_NUMBER;
-    UR5();
+    const pointVector basePosition;
+    const Eigen::Matrix<double,3,1> baseOrientation;
+    UR5(const pointVector __basePosition,const Eigen::Matrix<double,3,1> __baseOrientation);
     ~UR5();
-    trajectoryJointMatrix compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const double requiredTime);
+    trajectoryJointMatrix compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const double requiredTime,const int node_frequency);
     trajectoryPointVector get_end_effector_position(const jointVector &jointAngles);
 
     transformationMatrix compute_direct_kinematics(const jointVector &jointAngles,const int end_joint_number);
     jacobianMatrix compute_direct_differential_kinematics(const jointVector &jointAngles);
     jointVelocityVector compute_joints_velocities(const pointVelocityVector &end_joint_velocity,const jointVector &currentJointAngles);
-    
+    transformationMatrix getBaseTransformationMatrix();
     
     void print_direct_transform (const jointVector &jointAngles);
     friend ostream &operator<<(ostream &ostream, UR5 &manipulator);
