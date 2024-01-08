@@ -79,6 +79,15 @@ using Eigen::VectorXd;
 #define TRAJECTORY_STEP_NUMBER      10000
 #define TRAJECTORY_ERROR_WEIGHT     1
 
+#define BASE_JOINT_HOME_POSITION            1.57
+#define SHOULDER_JOINT_HOME_POSITION        -0.785
+#define ELBOW_JOINT_HOME_POSITION           -2.355
+#define WRIST1_JOINT_HOME_POSITION          -1.56
+#define WRIST_2_JOINT_HOME_POSITION         -1.56
+#define END_EFFECTOR_JOINT_HOME_POSITION    1.56
+
+#define UR5_JOINT_HOME_POSITION BASE_JOINT_HOME_POSITION,SHOULDER_JOINT_HOME_POSITION,ELBOW_JOINT_HOME_POSITION,WRIST1_JOINT_HOME_POSITION,WRIST_2_JOINT_HOME_POSITION,END_EFFECTOR_JOINT_HOME_POSITION
+
 typedef Eigen::Matrix<double,3,3> rotationalMatrix;
 typedef Eigen::Matrix<double,4,4> transformationMatrix;
 typedef Eigen::Matrix<double,6,6> jacobianMatrix;
@@ -98,16 +107,22 @@ public:
     const unsigned short joints_number=JOINT_NUMBER;
     const pointVector basePosition;
     const Eigen::Matrix<double,3,1> baseOrientation;
+
+
     UR5(const pointVector __basePosition,const Eigen::Matrix<double,3,1> __baseOrientation);
     ~UR5();
-    trajectoryJointMatrix compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const double requiredTime,const int node_frequency);
+
+    trajectoryJointMatrix compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const double requiredTime,const int node_frequency, const double endEffectorCoveredRadius);
     trajectoryPointVector get_end_effector_position(const jointVector &jointAngles);
+    jointVector get_joint_home_position();
 
     transformationMatrix compute_direct_kinematics(const jointVector &jointAngles,const int end_joint_number);
     jacobianMatrix compute_direct_differential_kinematics(const jointVector &jointAngles);
     jointVelocityVector compute_joints_velocities(const pointVelocityVector &end_joint_velocity,const jointVector &currentJointAngles);
     transformationMatrix getBaseTransformationMatrix();
     
+    int verifyEndEffectorCollision(const jointVector &jointAngles,const double end_effector_sphere_radius);
+
     void print_direct_transform (const jointVector &jointAngles);
     friend ostream &operator<<(ostream &ostream, UR5 &manipulator);
 };

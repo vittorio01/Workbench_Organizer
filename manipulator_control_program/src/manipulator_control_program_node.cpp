@@ -39,17 +39,16 @@ int main(int argc, char** argv) {
 
     
     if (!ros::ok()) return 0;
-    jointVector homePosition; 
-    homePosition << 1.5,-0.75,0.7,-0.2,0.75,-1.5;
-
+    jointVector homePosition=manipulator.get_joint_home_position();
+    
     interface.setPosition(homePosition);
     trajectoryPointVector startPosition=manipulator.get_end_effector_position(homePosition);
     trajectoryPointVector targetPosition;
-    targetPosition << 0.82,0.57,1.10,3.14,0,0; //0.16,0.24,-0.68,3.14,0,1;
+    targetPosition << 0.82,0.57,1.10,3.14,0,0; 
     
-    trajectoryJointMatrix trajectory=manipulator.compute_trajectory(targetPosition,homePosition,2,NODE_FREQUENCY);
-    targetPosition << 0.82,0.57,0.895,3.14,0,0;
-    trajectoryJointMatrix trajectory2=manipulator.compute_trajectory(targetPosition,trajectory.col(trajectory.cols()-1),5l,NODE_FREQUENCY);
+    trajectoryJointMatrix trajectory=manipulator.compute_trajectory(targetPosition,homePosition,5,NODE_FREQUENCY,0.1);
+    targetPosition << 0.2,0.2,1.4,0,-0.6,0; //0.82,0.57,0.90,3.14,0,0;
+    trajectoryJointMatrix trajectory2=manipulator.compute_trajectory(targetPosition,trajectory.col(trajectory.cols()-1),10,NODE_FREQUENCY,0.1);
     int step=-NODE_FREQUENCY;
     while (ros::ok()) {
         if (step>=0 && step<trajectory.cols()) {
@@ -60,7 +59,7 @@ int main(int argc, char** argv) {
             cout << "new angles: "<<trajectory.col(step).transpose() << endl;
             cout << "--------------------------------------------------"<<endl;
             
-        } else {
+        }else {
             if (step>=trajectory.cols() && step <(trajectory.cols()+trajectory2.cols())) {
                 cout <<"current position: "<< manipulator.get_end_effector_position(interface.getPositions()).transpose()<< endl;
                 cout << "current angles: "<<interface.getPositions().transpose() << endl;
