@@ -64,17 +64,23 @@ trajectoryPointVector UR5::get_end_effector_position(const jointVector &jointAng
 trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const double requiredTime, const int node_frequency, const double endEffectorCoveredRadius) {
     trajectoryEndEffectorMatrix end_effector_trajectory;
     trajectoryEndEffectorMatrix end_effector_velocities;
-    trajectoryPointVector startPosition=get_end_effector_position(jointAngles);
     trajectoryJointMatrix jointTrajectory;
-    if (true) {
-        double homeRequiredTime=requiredTime/3;
+
+    trajectoryPointVector startPosition=get_end_effector_position(jointAngles);
+    bool startOrientation=(cos(startPosition(5))*sin(startPosition(4))*cos(startPosition(3))+(sin(startPosition(3))*sin(startPosition(5))))>=0;  //true if left oriented respect Z axis
+    bool endOrientation=(cos(endPosition(5))*sin(endPosition(4))*cos(endPosition(3))+(sin(endPosition(3))*sin(endPosition(5))))>=0;
+    if (/*(startOrientation && !endOrientation) || 
+        (!startOrientation && endOrientation) ||
+        ((endPosition(0)-basePosition(0))<0 && (startPosition(0)-basePosition(0))>=0) || 
+        ((endPosition(0)-basePosition(0))>=0 && (startPosition(0)-basePosition(0))<0) ||
+        ((endPosition(1)-basePosition(1))<0 && (startPosition(1)-basePosition(1))>=0) || 
+        ((endPosition(1)-basePosition(1))>=0 && (startPosition(1)-basePosition(1))<0)*/ false) {
+
+        double homeRequiredTime=requiredTime/2;
         int homeSteps=(int)(homeRequiredTime*node_frequency);
 
-        double destinationRequiredTime=requiredTime/3;
+        double destinationRequiredTime=requiredTime/2;
         int destinationSteps=(int)(destinationRequiredTime*node_frequency);
-
-        double shoulderRequiredTime=requiredTime/3;
-        int shoulderSteps=(int)(destinationRequiredTime*node_frequency);
 
         //home procedure
         jointVector homeJointValues;
@@ -89,7 +95,7 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
         trajectoryPointVector b=(homePosition-startPosition)*(3/(pow(homeRequiredTime,2)));
         
         
-        jointTrajectory.resize(6,homeSteps+destinationSteps+shoulderSteps);
+        jointTrajectory.resize(6,homeSteps+destinationSteps);
         end_effector_trajectory.resize(6,homeSteps);
         end_effector_velocities.resize(6,homeSteps);
         for (int i=0;i<homeSteps;i++) {
@@ -102,25 +108,12 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
         pointVelocityVector velocity;
         for (int i=0;i<homeSteps;i++) {
             error=(end_effector_trajectory.col(i)-get_end_effector_position(cumulativePos))*errorWeight;
-            cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i),cumulativePos)*step_width);
+            cout << "error="<<error.transpose()<<endl;
+            cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i)+error,cumulativePos)*step_width);
             jointTrajectory.col(i)=cumulativePos;
         }
-
-        //base joint rotation
-
-        jointVector jointStartPosition=jointTrajectory.col(homeSteps-1);
-        jointVector jointEndPosition=jointStartPosition;
-        jointEndPosition(0)=-BASE_JOINT_HOME_POSITION;
-        jointVector aj=(jointEndPosition-jointStartPosition)*(-2/pow(shoulderRequiredTime,3));
-        jointVector bj=(jointEndPosition-jointStartPosition)*(3/(pow(shoulderRequiredTime,2)));
-        
-        for (int i=homeSteps;i<(homeSteps+shoulderSteps);i++) {
-            jointTrajectory.col(i)=(aj*pow(((i-homeSteps)*step_width),3))+(bj*pow(((i-homeSteps)*step_width),2))+jointStartPosition;
-        }
-
-        //destination procedure
     
-        startPosition=get_end_effector_position(jointTrajectory.col((homeSteps+shoulderSteps)-1));
+        startPosition=get_end_effector_position(jointTrajectory.col((homeSteps)-1));
         errorWeight=TRAJECTORY_ERROR_WEIGHT;
 
         step_width=destinationRequiredTime/((double)(destinationSteps));
@@ -136,60 +129,97 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
             end_effector_velocities.col(i)=(a*(3*pow(i*step_width,2)))+(b*(2*(i*step_width)));
         }
         
-        cumulativePos=jointTrajectory.col(homeSteps+shoulderSteps-1); 
-        for (int i=(homeSteps+shoulderSteps);i<(homeSteps+shoulderSteps+destinationSteps);i++) {
-            error=(end_effector_trajectory.col(i-((homeSteps+shoulderSteps))))-get_end_effector_position(cumulativePos)*errorWeight;
-            cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i-(homeSteps+shoulderSteps)),cumulativePos)*step_width);
+        cumulativePos=jointTrajectory.col(homeSteps-1); 
+        for (int i=(homeSteps);i<(homeSteps+destinationSteps);i++) {
+            error=(end_effector_trajectory.col(i-homeSteps)-get_end_effector_position(cumulativePos))*errorWeight;
+            cout << "error="<<error.transpose()<<endl;
+            cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i-homeSteps)+error,cumulativePos)*step_width);
             jointTrajectory.col(i)=cumulativePos;
         }
-        
-
-
     } else {
-        int steps=(int)(requiredTime*node_frequency);
-        double errorWeight=TRAJECTORY_ERROR_WEIGHT;
-
-        double step_width=requiredTime/((double)(steps));
-        
-        trajectoryPointVector a=(endPosition-startPosition)*(-2/pow(requiredTime,3));
-        trajectoryPointVector b=(endPosition-startPosition)*(3/(pow(requiredTime,2)));
-        
-        trajectoryJointMatrix jointTrajectory;
-        jointTrajectory.resize(6,steps);
-        end_effector_trajectory.resize(6,steps);
-        end_effector_velocities.resize(6,steps);
-        for (int i=0;i<steps;i++) {
-            end_effector_trajectory.col(i)=(a*pow((i*step_width),3))+(b*pow((i*step_width),2))+startPosition;
-            end_effector_velocities.col(i)=(a*(3*pow(i*step_width,2)))+(b*(2*(i*step_width)));
-        }
-
-        jointVector cumulativePos=jointAngles; 
         trajectoryPointVector error;
         pointVelocityVector velocity;
-        for (int i=0;i<steps;i++) {
-            error=(end_effector_trajectory.col(i)-get_end_effector_position(cumulativePos))*errorWeight;
-            cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i),cumulativePos)*step_width);
-            jointTrajectory.col(i)=cumulativePos;
+        trajectoryPointVector max_error;
+        trajectoryPointVector a;
+        trajectoryPointVector b;
+        double step_width;
+        double errorWeight;
+        int steps;
+        max_error << TRAJECTORY_MAX_ACCEPTED_ERROR;
+        jointVector cumulativePos;
+
+        bool loopEnable=true;
+        int loopState=0; 
+
+        while (loopEnable && loopState < 4) {
+            if (loopState==0) {
+                steps=(int)(requiredTime*node_frequency);
+                jointTrajectory.resize(6,steps);
+                cumulativePos=jointAngles; 
+            } else {
+                steps=(int)(node_frequency);
+                startPosition=get_end_effector_position(jointTrajectory.col(jointTrajectory.cols()-1));
+                cumulativePos=jointTrajectory.col(jointTrajectory.cols()-1); 
+                jointTrajectory.conservativeResize(Eigen::NoChange_t(),jointTrajectory.cols()+steps);
+            }
+
+            errorWeight=TRAJECTORY_ERROR_WEIGHT;
+            step_width=requiredTime/((double)(steps));
+            
+            a=(endPosition-startPosition)*(-2/pow(requiredTime,3));
+            b=(endPosition-startPosition)*(3/(pow(requiredTime,2)));
+
+            end_effector_trajectory.resize(6,steps);
+            end_effector_velocities.resize(6,steps);
+            
+            for (int i=0;i<steps;i++) {
+                end_effector_trajectory.col(i)=(a*pow((i*step_width),3))+(b*pow((i*step_width),2))+startPosition;
+                end_effector_velocities.col(i)=(a*(3*pow(i*step_width,2)))+(b*(2*(i*step_width)));
+            }
+            for (int i=0;i<steps;i++) {
+                error=(end_effector_trajectory.col(i)-get_end_effector_position(cumulativePos))*errorWeight;
+                cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i)+error,cumulativePos)*step_width);
+                jointTrajectory.col(i+(jointTrajectory.cols()-steps))=cumulativePos;
+            }
+        
+            error = end_effector_trajectory.col(end_effector_trajectory.cols()-1)-get_end_effector_position(jointTrajectory.col(jointTrajectory.cols()-1));
+            loopEnable=false;
+            for (int i=0;i<6;i++) {
+                if (error(i)>max_error(i)) {
+                    loopEnable=true;
+                    break;
+                }
+            }
+            loopState++;
+           
         }
+        cout << loopState << endl;
     }
-    
-    int collision;
-    for (int i=0;i<jointTrajectory.cols();i++) {
-        collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
-        if (collision==1 || collision==3) {
-            while (collision==1 || collision==3) {
-                jointTrajectory(3,i)=jointTrajectory(3,i)-0.01;
-                collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
-            } 
+    /*
+    if (jointTrajectory.cols()>0) {
+        int collision;
+        for (int i=0;i<jointTrajectory.cols();i++) {
+            collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
+            if (collision==1 || collision==3) {
+                while (collision==1 || collision==3) {
+                    jointTrajectory(3,i)=jointTrajectory(3,i)-0.01;
+                    collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
+                } 
+            }
         }
-    }
+    }*/
     return jointTrajectory;
 }
 
 jointVelocityVector UR5::compute_joints_velocities(const pointVelocityVector &end_joint_velocity,const jointVector &currentJointAngles) {
     jacobianMatrix jacobian=compute_direct_differential_kinematics(currentJointAngles);
-    jointVelocityVector v=jacobian.inverse()*end_joint_velocity;
-    return v;
+    jacobianMatrix jacobianTranspose=jacobian.transpose();
+    double manipulability=sqrt((jacobian*jacobianTranspose).determinant());
+    double k=0;
+    if (manipulability<JACOBIAN_SINGULARITY_THRSHOLD) k=JACOBIAN_PRECISION_COEFFICIENT*pow((1-(manipulability/JACOBIAN_SINGULARITY_THRSHOLD)),2);
+    if (manipulability<0.01) cout << "w=" << manipulability << ", k="<<k<<endl;
+    
+    return (jacobianTranspose*((jacobian*jacobianTranspose)+(pow(k,2)*jacobian.Identity())).inverse())*end_joint_velocity;  //jacobian.inverse()*end_joint_velocity;
 }
 
 jointVector UR5::get_joint_home_position() {
