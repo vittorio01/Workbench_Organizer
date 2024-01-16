@@ -74,8 +74,8 @@ using Eigen::VectorXd;
 
 #define BASE_JOINT_RADUS 0.060     
 #define SHOULDER_JOINT_RADIUS 0.054  
-#define ELBOW_JOINT_RADIUS 0.060     
-#define WRIST1_JOINT_RADIUS 0.040   
+#define ELBOW_JOINT_RADIUS 0.150     
+#define WRIST1_JOINT_RADIUS 0.060   
 #define END_EFFECTOR_JOINT_RADOUS 0.045    
 
 #define TRAJECTORY_ERROR_WEIGHT         0.6
@@ -91,6 +91,9 @@ using Eigen::VectorXd;
 #define END_EFFECTOR_JOINT_HOME_POSITION    1.56
 
 #define UR5_JOINT_HOME_POSITION BASE_JOINT_HOME_POSITION,SHOULDER_JOINT_HOME_POSITION,ELBOW_JOINT_HOME_POSITION,WRIST1_JOINT_HOME_POSITION,WRIST_2_JOINT_HOME_POSITION,END_EFFECTOR_JOINT_HOME_POSITION
+
+#define TRAJECTORY_TIME_PARAMETER 2.5
+#define TRAJECTORY_MIN_REQUIRED_TIME 0.2
 
 typedef Eigen::Matrix<double,3,3> rotationalMatrix;
 typedef Eigen::Matrix<double,4,4> transformationMatrix;
@@ -116,7 +119,7 @@ public:
     UR5(const pointVector __basePosition,const Eigen::Matrix<double,3,1> __baseOrientation);
     ~UR5();
 
-    trajectoryJointMatrix compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const double requiredTime,const int node_frequency, const double endEffectorCoveredRadius);
+    trajectoryJointMatrix compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const int node_frequency, const double endEffectorCoveredRadius);
     trajectoryPointVector get_end_effector_position(const jointVector &jointAngles);
     jointVector get_joint_home_position();
 

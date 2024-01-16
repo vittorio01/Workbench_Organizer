@@ -45,10 +45,10 @@ int main(int argc, char** argv) {
     interface.setPosition(homePosition);
     trajectoryPointVector startPosition=manipulator.get_end_effector_position(homePosition);
     trajectoryPointVector targetPosition;
-    targetPosition <<  manipulator.get_end_effector_position(inverseHomePosition);//0.82,0.57,1.10,3.14,0,0; //
-    trajectoryJointMatrix trajectory=manipulator.compute_trajectory(targetPosition,homePosition,5,NODE_FREQUENCY,0.1);
-    targetPosition << 0.2,0.2,1.4,0,0,0; //0.82,0.57,0.90,3.14,0,0;
-    trajectoryJointMatrix trajectory2=manipulator.compute_trajectory(targetPosition,trajectory.col(trajectory.cols()-1),8,NODE_FREQUENCY,0.1);
+    targetPosition << 0.82,0.57,1.3,3.14,0,0;     //manipulator.get_end_effector_position(inverseHomePosition);  //0.82,0.57,1.10,3.14,0,0;
+    trajectoryJointMatrix trajectory=manipulator.compute_trajectory(targetPosition,homePosition,NODE_FREQUENCY,0.1);
+    targetPosition << 0.2,0.2,1.55,0,0,0;   //0.2,0.2,1.4,0,0,0; //0.82,0.57,0.90,3.14,0,0; 
+    trajectoryJointMatrix trajectory2=manipulator.compute_trajectory(targetPosition,trajectory.col(trajectory.cols()-1),NODE_FREQUENCY,0.1);
     int step=-NODE_FREQUENCY;
     
     while (ros::ok()) {

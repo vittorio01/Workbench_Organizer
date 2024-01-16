@@ -61,20 +61,20 @@ trajectoryPointVector UR5::get_end_effector_position(const jointVector &jointAng
 
 }
 
-trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const double requiredTime, const int node_frequency, const double endEffectorCoveredRadius) {
+trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const int node_frequency, const double endEffectorCoveredRadius) {
     trajectoryEndEffectorMatrix end_effector_trajectory;
     trajectoryEndEffectorMatrix end_effector_velocities;
     trajectoryJointMatrix jointTrajectory;
 
     trajectoryPointVector startPosition=get_end_effector_position(jointAngles);
-    bool startOrientation=(cos(startPosition(5))*sin(startPosition(4))*cos(startPosition(3))+(sin(startPosition(3))*sin(startPosition(5))))>=0;  //true if left oriented respect Z axis
+    /*bool startOrientation=(cos(startPosition(5))*sin(startPosition(4))*cos(startPosition(3))+(sin(startPosition(3))*sin(startPosition(5))))>=0;  //true if left oriented respect Z axis
     bool endOrientation=(cos(endPosition(5))*sin(endPosition(4))*cos(endPosition(3))+(sin(endPosition(3))*sin(endPosition(5))))>=0;
-    if (/*(startOrientation && !endOrientation) || 
+    if ((startOrientation && !endOrientation) || 
         (!startOrientation && endOrientation) ||
         ((endPosition(0)-basePosition(0))<0 && (startPosition(0)-basePosition(0))>=0) || 
         ((endPosition(0)-basePosition(0))>=0 && (startPosition(0)-basePosition(0))<0) ||
         ((endPosition(1)-basePosition(1))<0 && (startPosition(1)-basePosition(1))>=0) || 
-        ((endPosition(1)-basePosition(1))>=0 && (startPosition(1)-basePosition(1))<0)*/ false) {
+        ((endPosition(1)-basePosition(1))>=0 && (startPosition(1)-basePosition(1))<0)) {
 
         double homeRequiredTime=requiredTime/2;
         int homeSteps=(int)(homeRequiredTime*node_frequency);
@@ -132,7 +132,6 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
         cumulativePos=jointTrajectory.col(homeSteps-1); 
         for (int i=(homeSteps);i<(homeSteps+destinationSteps);i++) {
             error=(end_effector_trajectory.col(i-homeSteps)-get_end_effector_position(cumulativePos))*errorWeight;
-            cout << "error="<<error.transpose()<<endl;
             cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i-homeSteps)+error,cumulativePos)*step_width);
             jointTrajectory.col(i)=cumulativePos;
         }
@@ -193,21 +192,254 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
             loopState++;
            
         }
-        cout << loopState << endl;
-    }
-    /*
-    if (jointTrajectory.cols()>0) {
-        int collision;
-        for (int i=0;i<jointTrajectory.cols();i++) {
-            collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
-            if (collision==1 || collision==3) {
-                while (collision==1 || collision==3) {
-                    jointTrajectory(3,i)=jointTrajectory(3,i)-0.01;
-                    collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
-                } 
+    }*/
+
+    trajectoryPointVector error;
+    pointVelocityVector velocity;
+    trajectoryPointVector max_error;
+    trajectoryPointVector a;
+    trajectoryPointVector b;
+    double step_width;
+    double errorWeight;
+    int steps;
+    max_error << TRAJECTORY_MAX_ACCEPTED_ERROR;
+    jointVector cumulativePos;
+
+    bool loopEnable=true;
+    int loopState=0; 
+    double requiredTime;
+    
+    while (loopEnable && loopState < 4) {
+        if (loopState==0) {
+            requiredTime=TRAJECTORY_MIN_REQUIRED_TIME+(TRAJECTORY_TIME_PARAMETER*sqrt((startPosition-endPosition).norm()));
+            steps=(int)(requiredTime*node_frequency);
+            jointTrajectory.resize(6,steps);
+            cumulativePos=jointAngles; 
+        } else {
+            startPosition=get_end_effector_position(jointTrajectory.col(jointTrajectory.cols()-1));
+            requiredTime=TRAJECTORY_MIN_REQUIRED_TIME+(TRAJECTORY_TIME_PARAMETER*sqrt((startPosition-endPosition).norm()));
+            if (requiredTime<TRAJECTORY_MIN_REQUIRED_TIME) requiredTime=TRAJECTORY_MIN_REQUIRED_TIME;
+            steps=(int)(requiredTime*node_frequency);
+            cumulativePos=jointTrajectory.col(jointTrajectory.cols()-1); 
+            jointTrajectory.conservativeResize(Eigen::NoChange_t(),jointTrajectory.cols()+steps);
+        }
+        errorWeight=TRAJECTORY_ERROR_WEIGHT;
+        step_width=requiredTime/((double)(steps));
+        
+        a=(endPosition-startPosition)*(-2/pow(requiredTime,3));
+        b=(endPosition-startPosition)*(3/(pow(requiredTime,2)));
+
+        end_effector_trajectory.resize(6,steps);
+        end_effector_velocities.resize(6,steps);
+        
+        for (int i=0;i<steps;i++) {
+            end_effector_trajectory.col(i)=(a*pow((i*step_width),3))+(b*pow((i*step_width),2))+startPosition;
+            end_effector_velocities.col(i)=(a*(3*pow(i*step_width,2)))+(b*(2*(i*step_width)));
+        }
+        for (int i=0;i<steps;i++) {
+            error=(end_effector_trajectory.col(i)-get_end_effector_position(cumulativePos))*errorWeight;
+            cumulativePos=cumulativePos+(compute_joints_velocities(end_effector_velocities.col(i)+error,cumulativePos)*step_width);
+            jointTrajectory.col(i+(jointTrajectory.cols()-steps))=cumulativePos;
+        }
+    
+        error = end_effector_trajectory.col(end_effector_trajectory.cols()-1)-get_end_effector_position(jointTrajectory.col(jointTrajectory.cols()-1));
+        loopEnable=false;
+        for (int i=0;i<6;i++) {
+            if (error(i)>max_error(i)) {
+                loopEnable=true;
+                break;
             }
         }
-    }*/
+        loopState++;
+        
+    }
+    if (jointTrajectory.cols()>1) {
+        int collision;
+        int firstCollisionIndex=-1;
+        int lastCollisionIndex=-1;
+        int borderCollisionIndex=-1;
+        int borderCollisionPersistence;
+
+        double borderCollisionJointValue;
+        double firstCollisionJointValue;
+        double lastCollisionJointValue;
+        jointVector lastJointValues;
+
+        bool collisionFound=false;
+        bool collisionInProgress=false;
+        bool direction;
+        for (int i=0;i<jointTrajectory.cols();i++) {
+            if (collisionInProgress) {
+                collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
+                if (collision==2 || collision==3) {
+                    if (direction) {
+                        lastJointValues=jointTrajectory.col(i);
+                        while (collision==2 || collision==3) {
+                            lastJointValues(4)=lastJointValues(4)+0.01;
+                            collision=verifyEndEffectorCollision(lastJointValues,endEffectorCoveredRadius);
+                        }
+                        if (lastJointValues(4)>borderCollisionJointValue) {
+                            borderCollisionJointValue=lastJointValues(4);
+                            borderCollisionIndex=i;
+                            borderCollisionPersistence=1;
+                        } else {
+                            if (lastJointValues(4)==borderCollisionPersistence) borderCollisionPersistence++;
+                        }
+                    } else {
+                        lastJointValues=jointTrajectory.col(i);
+                        while (collision==2 || collision==3) {
+                            lastJointValues(4)=lastJointValues(4)-0.01;
+                            collision=collision=verifyEndEffectorCollision(lastJointValues,endEffectorCoveredRadius);
+                        }
+                        if (lastJointValues(4)<borderCollisionJointValue) {
+                            borderCollisionJointValue=lastJointValues(4);
+                            borderCollisionIndex=i;
+                            borderCollisionPersistence=1;
+                        } else {
+                            if (lastJointValues(4)==borderCollisionPersistence) borderCollisionPersistence++;
+                        }
+                    }
+                } else {
+                    lastCollisionIndex=i;
+                    lastCollisionJointValue=jointTrajectory(4,i);
+                    collisionInProgress=false;
+                    double dt=(double)((borderCollisionIndex-firstCollisionIndex)/((double)node_frequency));
+                    double aq=(borderCollisionJointValue-firstCollisionJointValue)*(-2/pow(dt,3));
+                    double bq=(borderCollisionJointValue-firstCollisionJointValue)*(3/pow(dt,2));
+                    step_width=(double) (1/((double)(node_frequency)));
+                    for (int j=0;j<(borderCollisionIndex-firstCollisionIndex);j++) {
+                        jointTrajectory(4,(firstCollisionIndex+j))=(aq*pow((j*step_width),3))+(bq*pow((j*step_width),2))+firstCollisionJointValue;
+                    }
+                    for (int j=0;j<borderCollisionPersistence;j++) {
+                        jointTrajectory(4,(borderCollisionIndex+j))=borderCollisionJointValue;
+                    }
+                    borderCollisionIndex=borderCollisionIndex+borderCollisionPersistence;
+                    dt=(double)((lastCollisionIndex-borderCollisionIndex)/((double)node_frequency));
+                    aq=(lastCollisionJointValue-borderCollisionJointValue)*(-2/pow(dt,3));
+                    bq=(lastCollisionJointValue-borderCollisionJointValue)*(3/pow(dt,2));
+                    for (int j=0;j<(lastCollisionIndex-borderCollisionIndex);j++) {
+                        jointTrajectory(4,(borderCollisionIndex+j))=(aq*pow((j*step_width),3))+(bq*pow((j*step_width),2))+borderCollisionJointValue;
+                    }
+                    collisionFound=false;
+                }
+            } else {
+                collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
+                if (collision==2 || collision==3) {
+                    collisionFound=true;
+                    collisionInProgress=true;
+                    firstCollisionIndex=i;
+                    firstCollisionJointValue=jointTrajectory(4,i);
+                    if (i>0) {
+                        direction=(jointTrajectory(3,i)-jointTrajectory(i-1))>0;
+                    } else {
+                        direction=(jointTrajectory(3,i+1)-jointTrajectory(i))>0;
+                    }
+                    borderCollisionJointValue=jointTrajectory(4,i);
+                }
+            }
+        }
+        if (collisionFound) {
+            lastCollisionIndex=jointTrajectory.cols()-1;
+            lastCollisionJointValue=jointTrajectory(4,lastCollisionIndex);
+            double dt=(double)((borderCollisionIndex-firstCollisionIndex)/((double)node_frequency));
+            double aq=(borderCollisionJointValue-firstCollisionJointValue)*(-2/pow(dt,3));
+            double bq=(borderCollisionJointValue-firstCollisionJointValue)*(3/pow(dt,2));
+            step_width=(double) (1/((double)(node_frequency)));
+            for (int i=0;i<(borderCollisionIndex-firstCollisionIndex);i++) {
+                jointTrajectory(4,(firstCollisionIndex+i))=(aq*pow((i*step_width),3))+(bq*pow((i*step_width),2))+firstCollisionJointValue;
+            }
+            for (int i=0;i<borderCollisionPersistence;i++) {
+                jointTrajectory(4,(borderCollisionIndex+i))=borderCollisionJointValue;
+            }
+            borderCollisionIndex=borderCollisionIndex+borderCollisionPersistence;
+            dt=(double)((lastCollisionIndex-borderCollisionIndex)/((double)node_frequency));
+            aq=(lastCollisionJointValue-borderCollisionJointValue)*(-2/pow(dt,3));
+            bq=(lastCollisionJointValue-borderCollisionJointValue)*(3/pow(dt,2));
+            for (int i=0;i<(lastCollisionIndex-borderCollisionIndex);i++) {
+                jointTrajectory(4,(borderCollisionIndex+i))=(aq*pow((i*step_width),3))+(bq*pow((i*step_width),2))+borderCollisionJointValue;
+            }
+        }
+
+        lastCollisionIndex=-1;
+        collisionFound=false;
+        collisionInProgress=false;
+
+        for (int i=0;i<jointTrajectory.cols();i++) {
+            if (collisionInProgress) {
+                collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
+                if (collision==1 || collision==3) {
+                    lastJointValues=jointTrajectory.col(i);
+                    while (collision==1 || collision==3) {
+                        lastJointValues(2)=lastJointValues(2)+0.01;
+                        collision=verifyEndEffectorCollision(lastJointValues,endEffectorCoveredRadius);
+                    }
+                    if (lastJointValues(2)>borderCollisionJointValue) {
+                        borderCollisionJointValue=lastJointValues(2);
+                        borderCollisionIndex=i;
+                        borderCollisionPersistence=1;
+                    } else {
+                        if (lastJointValues(2)==borderCollisionPersistence) borderCollisionPersistence++;
+                    }
+                } else {
+
+                    lastCollisionIndex=i;
+                    lastCollisionJointValue=jointTrajectory(2,i);
+
+                    cout << firstCollisionIndex << ", " << borderCollisionIndex << ", " << lastCollisionIndex << endl;
+
+                    collisionInProgress=false;
+                    double dt=(double)((borderCollisionIndex-firstCollisionIndex)/((double)node_frequency));
+                    double aq=(borderCollisionJointValue-firstCollisionJointValue)*(-2/pow(dt,3));
+                    double bq=(borderCollisionJointValue-firstCollisionJointValue)*(3/pow(dt,2));
+                    step_width=(double) (1/((double)(node_frequency)));
+                    for (int j=0;j<(borderCollisionIndex-firstCollisionIndex);j++) {
+                        jointTrajectory(2,(firstCollisionIndex+j))=(aq*pow((j*step_width),3))+(bq*pow((j*step_width),2))+firstCollisionJointValue;
+                    }
+                    for (int j=0;j<borderCollisionPersistence;j++) {
+                        jointTrajectory(2,(borderCollisionIndex+j))=borderCollisionJointValue;
+                    }
+                    borderCollisionIndex=borderCollisionIndex+borderCollisionPersistence;
+                    dt=(double)((lastCollisionIndex-borderCollisionIndex)/((double)node_frequency));
+                    aq=(lastCollisionJointValue-borderCollisionJointValue)*(-2/pow(dt,3));
+                    bq=(lastCollisionJointValue-borderCollisionJointValue)*(3/pow(dt,2));
+                    for (int j=0;j<(lastCollisionIndex-borderCollisionIndex);j++) {
+                        jointTrajectory(2,(borderCollisionIndex+j))=(aq*pow((j*step_width),3))+(bq*pow((j*step_width),2))+borderCollisionJointValue;
+                    }
+                    collisionFound=false;
+                }
+            } else {
+                collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
+                if (collision==1 || collision==3) {
+                    collisionFound=true;
+                    collisionInProgress=true;
+                    firstCollisionIndex=i;
+                    firstCollisionJointValue=jointTrajectory(2,i);
+                    borderCollisionJointValue=jointTrajectory(2,i);
+                }
+            }
+        }
+        if (collisionFound) {
+            lastCollisionIndex=jointTrajectory.cols()-1;
+            lastCollisionJointValue=jointTrajectory(4,lastCollisionIndex);
+            double dt=(double)((borderCollisionIndex-firstCollisionIndex)/((double)node_frequency));
+            double aq=(borderCollisionJointValue-firstCollisionJointValue)*(-2/pow(dt,3));
+            double bq=(borderCollisionJointValue-firstCollisionJointValue)*(3/pow(dt,2));
+            step_width=(double) (1/((double)(node_frequency)));
+            for (int i=0;i<(borderCollisionIndex-firstCollisionIndex);i++) {
+                jointTrajectory(2,(firstCollisionIndex+i))=(aq*pow((i*step_width),3))+(bq*pow((i*step_width),2))+firstCollisionJointValue;
+            }
+            for (int i=0;i<borderCollisionPersistence;i++) {
+                jointTrajectory(2,(borderCollisionIndex+i))=borderCollisionJointValue;
+            }
+            borderCollisionIndex=borderCollisionIndex+borderCollisionPersistence;
+            dt=(double)((lastCollisionIndex-borderCollisionIndex)/((double)node_frequency));
+            aq=(lastCollisionJointValue-borderCollisionJointValue)*(-2/pow(dt,3));
+            bq=(lastCollisionJointValue-borderCollisionJointValue)*(3/pow(dt,2));
+            for (int i=0;i<(lastCollisionIndex-borderCollisionIndex);i++) {
+                jointTrajectory(2,(borderCollisionIndex+i))=(aq*pow((i*step_width),3))+(bq*pow((i*step_width),2))+borderCollisionJointValue;
+            }
+        }
+    }
     return jointTrajectory;
 }
 
@@ -217,8 +449,6 @@ jointVelocityVector UR5::compute_joints_velocities(const pointVelocityVector &en
     double manipulability=sqrt((jacobian*jacobianTranspose).determinant());
     double k=0;
     if (manipulability<JACOBIAN_SINGULARITY_THRSHOLD) k=JACOBIAN_PRECISION_COEFFICIENT*pow((1-(manipulability/JACOBIAN_SINGULARITY_THRSHOLD)),2);
-    if (manipulability<0.01) cout << "w=" << manipulability << ", k="<<k<<endl;
-    
     return (jacobianTranspose*((jacobian*jacobianTranspose)+(pow(k,2)*jacobian.Identity())).inverse())*end_joint_velocity;  //jacobian.inverse()*end_joint_velocity;
 }
 
@@ -285,13 +515,13 @@ int UR5::verifyEndEffectorCollision(const jointVector &jointAngles,const double 
     transformationMatrix temp=compute_direct_kinematics(jointAngles);
     pointVector endEffectorCenter(temp(0,3),temp(1,3),temp(2,3));
 
-    temp=compute_direct_kinematics(jointAngles,3);
+    temp=compute_direct_kinematics(jointAngles,2);
     pointVector elbow_p1(temp(0,3),temp(1,3),temp(2,3));
-    temp=compute_direct_kinematics(jointAngles,4);
+    temp=compute_direct_kinematics(jointAngles,3);
     pointVector elbow_p2(temp(0,3),temp(1,3),temp(2,3));
 
     pointVector elbow2_p1(temp(0,3),temp(1,3),temp(2,3));
-    temp=compute_direct_kinematics(jointAngles,5);
+    temp=compute_direct_kinematics(jointAngles,4);
     pointVector elbow2_p2(temp(0,3),temp(1,3),temp(2,3));
     
     pointVector p12=elbow_p2-elbow_p1;
@@ -309,7 +539,6 @@ int UR5::verifyEndEffectorCollision(const jointVector &jointAngles,const double 
     p12=elbow2_p2-elbow2_p1;
     p1e=endEffectorCenter-elbow2_p1;
     p2e=endEffectorCenter-elbow2_p2;
-
     if (p1e.dot(p12)>0 && p2e.dot(p12)<0) {
         distance =((p12.cross(p1e)).norm())/p12.norm();
         if (distance <= (end_effector_sphere_radius+WRIST1_JOINT_RADIUS)) {
