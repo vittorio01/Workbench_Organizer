@@ -74,8 +74,8 @@ using Eigen::VectorXd;
 
 #define BASE_JOINT_RADUS 0.060     
 #define SHOULDER_JOINT_RADIUS 0.054  
-#define ELBOW_JOINT_RADIUS 0.150     
-#define WRIST1_JOINT_RADIUS 0.060   
+#define ELBOW_JOINT_RADIUS 0.05
+#define WRIST1_JOINT_RADIUS 0.06   
 #define END_EFFECTOR_JOINT_RADOUS 0.045    
 
 #define TRAJECTORY_ERROR_WEIGHT         0.6
@@ -118,6 +118,8 @@ public:
 
     UR5(const pointVector __basePosition,const Eigen::Matrix<double,3,1> __baseOrientation);
     ~UR5();
+
+    void adjustJointTrajectory(trajectoryJointMatrix &jointTrajectory, int selectedJointIndex, int node_frequency, int firstIndex, int borderIndex, int lastIndex, int borderIndexPersistence, double borderCustomJointValue);
 
     trajectoryJointMatrix compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const int node_frequency, const double endEffectorCoveredRadius);
     trajectoryPointVector get_end_effector_position(const jointVector &jointAngles);
