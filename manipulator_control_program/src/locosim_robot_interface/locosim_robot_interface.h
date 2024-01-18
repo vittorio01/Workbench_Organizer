@@ -38,15 +38,14 @@ class Locosim_robot_interface {
         static bool online;
 
         static double lastGripperValues[];
-
+        static double lastJointPosition[];
     public:
         static void initialize(ros::NodeHandle &node);
         static bool getSystemStatus();
         static void messageReadHandler(const sensor_msgs::JointState &msg);    
         static JointVector getPositions();
         static void setPosition(const JointVector& targetPosition);
-        static void setPosition(const JointVector& targetPosition,const double gripperValues[]);
-
+        static void setGripperValue(const double gripperValues[]);
         friend ostream& operator<<(ostream& os,const Locosim_robot_interface& interface);
 
 
@@ -60,6 +59,7 @@ ros::Subscriber Locosim_robot_interface::subscriber;
 ros::Publisher Locosim_robot_interface::gripper_sender;
 ros::Publisher Locosim_robot_interface::sender;
 double Locosim_robot_interface::lastGripperValues[GRIPPER_NUMBER];
+double Locosim_robot_interface::lastJointPosition[JOINTS_NUMBER];
 bool Locosim_robot_interface::online=false;
 
 ostream& operator<<(ostream& os,const Locosim_robot_interface& interface);

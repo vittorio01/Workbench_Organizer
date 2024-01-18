@@ -58,6 +58,7 @@ void Locosim_robot_interface::setPosition(const JointVector& targetPosition) {
     msg.data.resize(JOINT_NUMBER+GRIPPER_NUMBER);
     for (int i=0;i<JOINT_NUMBER;i++) {
         msg.data[i]=targetPosition[i];
+        lastJointPosition[i]=targetPosition[i];
     }
     for (int i=0;i<GRIPPER_NUMBER;i++) {
         msg.data[JOINT_NUMBER+i]=lastGripperValues[i];
@@ -65,20 +66,18 @@ void Locosim_robot_interface::setPosition(const JointVector& targetPosition) {
     sender.publish(msg);
 }
 
-void Locosim_robot_interface::setPosition(const JointVector& targetPosition,const double gripperValues[]) {
+void Locosim_robot_interface::setGripperValue(const double gripperValues[]) {
     std_msgs::Float64MultiArray msg;
     msg.data.resize(JOINT_NUMBER+GRIPPER_NUMBER);
     for (int i=0;i<JOINT_NUMBER;i++) {
-        msg.data[i]=targetPosition[i];
+        msg.data[i]=lastJointPosition[i];
     }
     for (int i=0;i<GRIPPER_NUMBER;i++) {
         msg.data[JOINT_NUMBER+i]=gripperValues[i];
         lastGripperValues[i]=gripperValues[i];
     }
     sender.publish(msg);
-    
 }
-
 
 ostream& operator<<(ostream& os,const Locosim_robot_interface& interface) {
     for (int i=0;i<(JOINTS_NUMBER);i++) {

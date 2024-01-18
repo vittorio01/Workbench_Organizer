@@ -23,8 +23,8 @@
 
 using namespace std;
 
-typedef enum{initializing,idle,moving,planning,gripper_adjusting} stateType;
-typedef enum{none,ef_move,gripper_adjust} commandType;
+typedef enum{initializing,idle,moving,planning,gripper_adjusting,homing_planning} stateType;
+typedef enum{none,ef_move,gripper_adjust,homing_procedure} commandType;
 
 stateType internalState;
 commandType assignedCommand;
@@ -46,6 +46,10 @@ void commandHandler (const manipulator_control_program::mcp_command &message) {
     if (message.command.compare("gripper_adjust")==0 && internalState==idle) {
         assignedCommand=gripper_adjust;
         gripperTargetValue=message.gripperDistance;
+        return;
+    }
+    if (message.command.compare("homing_procedure")==0 && internalState==idle) {
+        assignedCommand=homing_procedure;
         return;
     }
 }
@@ -85,12 +89,20 @@ int main(int argc, char** argv) {
                         ROS_INFO("New gripper distance received." );
                         internalState=gripper_adjusting;
                         break;
+                    case homing_procedure:
+                        ROS_INFO("Homing procedure command received.");
+                        internalState=homing_planning;
+                        break;
                     case none:
                         break;
                     default:
                         ROS_INFO("Unknown command. Skipping..." );
                         break;
                 }
+                break;
+            case homing_planning:
+                destinationPose=manipulator.get_end_effector_position(manipulator.get_joint_home_position());
+                internalState=planning;
                 break;
             case planning:
                 msg.status="Planning";
@@ -99,12 +111,14 @@ int main(int argc, char** argv) {
                 if (jointMotionMatrix.cols()>0) {
                     internalState=moving;
                     currentTrajectoryIndex=0;
+                    ROS_INFO("Motion planning Complete!");
+                    ROS_INFO("New destination: {%f, %f, %f, %f, %f, %f}\n",destinationPose(0),destinationPose(1),destinationPose(2),destinationPose(3),destinationPose(4),destinationPose(5));
                 } else {
                     internalState=idle;
                     assignedCommand=none;
+                    ROS_INFO("Nothing to do. Waiting for other commands");
                 }
-                ROS_INFO("Motion planning Complete!");
-                ROS_INFO("New destination: {%f, %f, %f, %f, %f, %f}\n",destinationPose(0),destinationPose(1),destinationPose(2),destinationPose(3),destinationPose(4),destinationPose(5));
+               
             case moving:
                 msg.status="Moving";
                 if (currentTrajectoryIndex<jointMotionMatrix.cols()) {
@@ -112,20 +126,28 @@ int main(int argc, char** argv) {
                     interface.setPosition(jointMotionMatrix.col(currentTrajectoryIndex));
                     currentTrajectoryIndex++;
                 } else {
+                    ROS_INFO("Moving procedure complete! Waiting for other commands");
                     internalState=idle;
                     assignedCommand=none;
                 }
                 break;
+            case gripper_adjusting:
+                msg.status="Adjusting Gripper Distance";
+                interface.setGripperValue(softGripper::translateGripperValue(gripperTargetValue));
+                internalState=idle;
+                assignedCommand=none;
+                break;
             case initializing:
                 msg.status="Initializing";
                 if (interface.getSystemStatus()) {
-                    internalState=idle;
+                    internalState=homing_planning;
                     assignedCommand=none;
-                    ROS_INFO("Interface connected! Waiting for commands" );
+                    ROS_INFO("Interface connected! Starting homing procedure" );
                 }
                 ros::spinOnce();
                 loop_rate.sleep();
                 continue;
+            
             default:
                 internalState=idle;
                 assignedCommand=none;
