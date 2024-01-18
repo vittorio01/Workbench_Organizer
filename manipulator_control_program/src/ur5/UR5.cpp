@@ -15,53 +15,7 @@ UR5::~UR5() {
     }
 }
 
-transformationMatrix UR5::getBaseTransformationMatrix() {
-    transformationMatrix matrix;
-    double psi=baseOrientation(0);
-    double theta=baseOrientation(1);
-    double phi=baseOrientation(2);
-
-    matrix <<   (cos(phi)*cos(theta)),((cos(phi)*sin(theta)*sin(psi))-(sin(phi)*cos(psi))),((cos(phi)*sin(theta)*cos(psi))+(sin(phi)*sin(psi))),basePosition(0),
-                (sin(phi)*cos(theta)),((sin(phi)*sin(theta)*sin(psi))+(cos(phi)*cos(psi))),((sin(phi)*sin(theta)*cos(psi))-(cos(phi)*sin(psi))),basePosition(1),
-                (-sin(theta)),(cos(theta)*sin(psi)),(cos(theta)*cos(psi)),basePosition(2),
-                0,0,0,1;  
-    return matrix;
-}
-
-transformationMatrix UR5::compute_direct_kinematics(const jointVector &jointAngles,const int end_joint_number=JOINT_NUMBER) {
-    transformationMatrix matrix=getBaseTransformationMatrix();
-    for (int i=0;i<end_joint_number;i++) {
-        matrix=matrix*(joint_list[i]->get_transformation_matrix(jointAngles(i)));
-    }
-    return matrix;
-}
-
-trajectoryPointVector UR5::get_end_effector_position(const jointVector &jointAngles) {
-    trajectoryPointVector position;
-    transformationMatrix directTransformation=compute_direct_kinematics(jointAngles);
-    position(0)=directTransformation(0,3);
-    position(1)=directTransformation(1,3);
-    position(2)=directTransformation(2,3);
-    if (directTransformation(2,0)!= 1 && directTransformation(2,0)!=-1) {
-        position(4)=-asin(directTransformation(2,0));
-        position(3)=atan2((directTransformation(2,1)/(cos(position(4)))),((directTransformation(2,2)/(cos(position(4))))));
-        position(5)=atan2((directTransformation(1,0)/(cos(position(4)))),((directTransformation(0,0)/(cos(position(4))))));
-    } else {
-        position(5)=0;
-        position(3)=atan2(directTransformation(0,1),directTransformation(0,2));
-        if (directTransformation(2,0)==-1) {
-           position(4)=M_PI_2;
-        } else {
-           position(4)=-M_PI_2;
-        }
-    }
-
-
-    return position;
-
-}
-
-trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const int node_frequency, const double endEffectorCoveredRadius) {
+trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPosition, const jointVector &jointAngles,const int node_frequency) {
     trajectoryEndEffectorMatrix end_effector_trajectory;
     trajectoryEndEffectorMatrix end_effector_velocities;
     trajectoryJointMatrix jointTrajectory;
@@ -142,13 +96,13 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
         bool direction;
         for (int i=0;i<jointTrajectory.cols();i++) {
             if (collisionInProgress) {
-                collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
+                collision=verifyEndEffectorCollision(jointTrajectory.col(i));
                 if (collision==2 || collision==3) {
                     if (direction) {
                         lastJointValues=jointTrajectory.col(i);
                         while (collision==2 || collision==3) {
                             lastJointValues(4)=lastJointValues(4)+0.01;
-                            collision=verifyEndEffectorCollision(lastJointValues,endEffectorCoveredRadius);
+                            collision=verifyEndEffectorCollision(lastJointValues);
                         }
                         if (lastJointValues(4)>borderCollisionJointValue) {
                             borderCollisionJointValue=lastJointValues(4);
@@ -161,7 +115,7 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
                         lastJointValues=jointTrajectory.col(i);
                         while (collision==2 || collision==3) {
                             lastJointValues(4)=lastJointValues(4)-0.01;
-                            collision=collision=verifyEndEffectorCollision(lastJointValues,endEffectorCoveredRadius);
+                            collision=collision=verifyEndEffectorCollision(lastJointValues);
                         }
                         if (lastJointValues(4)<borderCollisionJointValue) {
                             borderCollisionJointValue=lastJointValues(4);
@@ -178,7 +132,7 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
                     collisionFound=false;
                 }
             } else {
-                collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
+                collision=verifyEndEffectorCollision(jointTrajectory.col(i));
                 if (collision==2 || collision==3) {
                     collisionFound=true;
                     collisionInProgress=true;
@@ -204,12 +158,12 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
         
         for (int i=0;i<jointTrajectory.cols();i++) {
             if (collisionInProgress) {
-                collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
+                collision=verifyEndEffectorCollision(jointTrajectory.col(i));
                 if (collision==1 || collision==3) {
                     lastJointValues=jointTrajectory.col(i);
                     while (collision==1 || collision==3) {
                         lastJointValues(2)=lastJointValues(2)+0.01;
-                        collision=verifyEndEffectorCollision(lastJointValues,endEffectorCoveredRadius);
+                        collision=verifyEndEffectorCollision(lastJointValues);
                     }
                     if (lastJointValues(2)>borderCollisionJointValue) {
                         borderCollisionJointValue=lastJointValues(2);
@@ -226,7 +180,7 @@ trajectoryJointMatrix UR5::compute_trajectory(const trajectoryPointVector &endPo
                     collisionFound=false;
                 }
             } else {
-                collision=verifyEndEffectorCollision(jointTrajectory.col(i),endEffectorCoveredRadius);
+                collision=verifyEndEffectorCollision(jointTrajectory.col(i));
                 if (collision==1 || collision==3) {
                     collisionFound=true;
                     collisionInProgress=true;
@@ -274,10 +228,12 @@ jointVelocityVector UR5::compute_joints_velocities(const pointVelocityVector &en
     return (jacobianTranspose*((jacobian*jacobianTranspose)+(pow(k,2)*jacobian.Identity())).inverse())*end_joint_velocity;  //jacobian.inverse()*end_joint_velocity;
 }
 
-jointVector UR5::get_joint_home_position() {
-    jointVector home;
-    home << UR5_JOINT_HOME_POSITION;
-    return home;
+transformationMatrix UR5::compute_direct_kinematics(const jointVector &jointAngles,const int end_joint_number=JOINT_NUMBER) {
+    transformationMatrix matrix=getBaseTransformationMatrix();
+    for (int i=0;i<end_joint_number;i++) {
+        matrix=matrix*(joint_list[i]->get_transformation_matrix(jointAngles(i)));
+    }
+    return matrix;
 }
 
 jacobianMatrix UR5::compute_direct_differential_kinematics(const jointVector &jointAngles) {
@@ -320,6 +276,50 @@ jacobianMatrix UR5::compute_direct_differential_kinematics(const jointVector &jo
     return angleTransformationMatrix.inverse()*jacobian;
 }
 
+transformationMatrix UR5::getBaseTransformationMatrix() {
+    transformationMatrix matrix;
+    double psi=baseOrientation(0);
+    double theta=baseOrientation(1);
+    double phi=baseOrientation(2);
+
+    matrix <<   (cos(phi)*cos(theta)),((cos(phi)*sin(theta)*sin(psi))-(sin(phi)*cos(psi))),((cos(phi)*sin(theta)*cos(psi))+(sin(phi)*sin(psi))),basePosition(0),
+                (sin(phi)*cos(theta)),((sin(phi)*sin(theta)*sin(psi))+(cos(phi)*cos(psi))),((sin(phi)*sin(theta)*cos(psi))-(cos(phi)*sin(psi))),basePosition(1),
+                (-sin(theta)),(cos(theta)*sin(psi)),(cos(theta)*cos(psi)),basePosition(2),
+                0,0,0,1;  
+    return matrix;
+}
+
+trajectoryPointVector UR5::get_end_effector_position(const jointVector &jointAngles) {
+    trajectoryPointVector position;
+    transformationMatrix directTransformation=compute_direct_kinematics(jointAngles);
+    position(0)=directTransformation(0,3);
+    position(1)=directTransformation(1,3);
+    position(2)=directTransformation(2,3);
+    if (directTransformation(2,0)!= 1 && directTransformation(2,0)!=-1) {
+        position(4)=-asin(directTransformation(2,0));
+        position(3)=atan2((directTransformation(2,1)/(cos(position(4)))),((directTransformation(2,2)/(cos(position(4))))));
+        position(5)=atan2((directTransformation(1,0)/(cos(position(4)))),((directTransformation(0,0)/(cos(position(4))))));
+    } else {
+        position(5)=0;
+        position(3)=atan2(directTransformation(0,1),directTransformation(0,2));
+        if (directTransformation(2,0)==-1) {
+           position(4)=M_PI_2;
+        } else {
+           position(4)=-M_PI_2;
+        }
+    }
+
+
+    return position;
+
+}
+
+jointVector UR5::get_joint_home_position() {
+    jointVector home;
+    home << UR5_JOINT_HOME_POSITION;
+    return home;
+}
+
 void UR5::print_direct_transform(const jointVector &jointAngles) {
     transformationMatrix currentTransform;
     Eigen::Matrix<double,4,1> currentPosition;
@@ -331,10 +331,7 @@ void UR5::print_direct_transform(const jointVector &jointAngles) {
     }
 }
 
-
-#define  ELBOW_JOINT_CORRECTION_MATRIX_VALUE    0.135
-#define  WRIST1_JOINT_CORRECTION_MATRIX_VALUE   -0.135
-int UR5::verifyEndEffectorCollision(const jointVector &jointAngles,const double end_effector_sphere_radius) {
+int UR5::verifyEndEffectorCollision(const jointVector &jointAngles) {
     int collision=0;
 
     transformationMatrix temp=compute_direct_kinematics(jointAngles);
@@ -366,7 +363,7 @@ int UR5::verifyEndEffectorCollision(const jointVector &jointAngles,const double 
 
     if (p1e.dot(p12)>0 && p2e.dot(p12)<0) {
         distance =((p12.cross(p1e)).norm())/p12.norm();
-        if (distance <= (end_effector_sphere_radius+ELBOW_JOINT_RADIUS)) {
+        if (distance <= (END_EFFECTOR_COLLISION_AREA+ELBOW_JOINT_RADIUS)) {
             collision=1;
         }
     }
@@ -376,7 +373,7 @@ int UR5::verifyEndEffectorCollision(const jointVector &jointAngles,const double 
     p2e=endEffectorCenter-elbow2_p2;
     if (p1e.dot(p12)>0 && p2e.dot(p12)<0) {
         distance =((p12.cross(p1e)).norm())/p12.norm();
-        if (distance <= (end_effector_sphere_radius+WRIST1_JOINT_RADIUS)) {
+        if (distance <= (END_EFFECTOR_COLLISION_AREA+WRIST1_JOINT_RADIUS)) {
             if (collision==1) {
                 collision=3;
             } else {

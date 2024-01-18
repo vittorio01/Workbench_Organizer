@@ -8,8 +8,13 @@
 
 #include "ur5/UR5.h"
 #include "ur5/UR5.cpp"
+#include "ur5/gripper/soft_gripper.h"
+#include "ur5/gripper/soft_gripper.cpp"
 #include "locosim_robot_interface/locosim_robot_interface.h"
 #include "locosim_robot_interface/locosim_robot_interface.cpp"
+
+#include "manipulator_control_program/mcp_command.h"
+#include "manipulator_control_program/mcp_status.h"
 
 #define NODE_FREQUENCY 200
 
@@ -18,59 +23,122 @@
 
 using namespace std;
 
-int main(int argc, char** argv) {
-    cout << "started manipulator_control_program ROS node\n" ;
+typedef enum{initializing,idle,moving,planning,gripper_adjusting} stateType;
+typedef enum{none,ef_move,gripper_adjust} commandType;
 
+stateType internalState;
+commandType assignedCommand;
+trajectoryPointVector destinationPose;
+double gripperTargetValue;
+trajectoryJointMatrix jointMotionMatrix;
+
+void commandHandler (const manipulator_control_program::mcp_command &message) {
+    if (message.command.compare("move")==0 && internalState==idle) {
+        assignedCommand=ef_move;
+        destinationPose(0)=message.x;
+        destinationPose(1)=message.y;
+        destinationPose(2)=message.z;
+        destinationPose(3)=message.phi;
+        destinationPose(4)=message.theta;
+        destinationPose(5)=message.psi;
+        return;
+    } 
+    if (message.command.compare("gripper_adjust")==0 && internalState==idle) {
+        assignedCommand=gripper_adjust;
+        gripperTargetValue=message.gripperDistance;
+        return;
+    }
+}
+
+int main(int argc, char** argv) {
+    ROS_INFO("started manipulator_control_program ROS node" );
     ros::init(argc,argv,"data_listener");
     ros::NodeHandle node;
     
     Locosim_robot_interface interface;
     interface.initialize(node);
-
+    
+    
+    internalState=initializing;
+    assignedCommand=none;
     UR5 manipulator(pointVector(UR5_SPAWN_POSITION),Eigen::Matrix<double,3,1>(UR5_SPAWN_ORIENTATION));
+    
+    ros::Publisher mcpStatusPublisher = node.advertise<manipulator_control_program::mcp_status>("mcp_status", 10);
+    ros::Subscriber mcpCommandSubscriber = node.subscribe("mcp_command",10,commandHandler);
 
-    cout << manipulator <<endl;
-
+    manipulator_control_program::mcp_status msg;
+    trajectoryPointVector end_effector_position;
     ros::Rate loop_rate(NODE_FREQUENCY);
-    while (ros::ok() && !interface.getSystemStatus()) {
-        ros::spinOnce();
-        loop_rate.sleep();
-    }
 
-    
-    if (!ros::ok()) return 0;
-    jointVector homePosition=manipulator.get_joint_home_position();
-    jointVector inverseHomePosition=manipulator.get_joint_home_position();
-    inverseHomePosition(0)=-homePosition(0);
-    interface.setPosition(homePosition);
-    trajectoryPointVector startPosition=manipulator.get_end_effector_position(homePosition);
-    trajectoryPointVector targetPosition;
-    targetPosition << manipulator.get_end_effector_position(inverseHomePosition);  //0.82,0.57,1.10,3.14,0,0;
-    trajectoryJointMatrix trajectory=manipulator.compute_trajectory(targetPosition,homePosition,NODE_FREQUENCY,0.1);
-    targetPosition << 0.82,0.57,1.3,3.14,0,0;   //0.2,0.2,1.4,0,0,0; //0.82,0.57,0.90,3.14,0,0; 
-    trajectoryJointMatrix trajectory2=manipulator.compute_trajectory(targetPosition,trajectory.col(trajectory.cols()-1),NODE_FREQUENCY,0.1);
-    int step=-NODE_FREQUENCY;
-    
+    int currentTrajectoryIndex;
+
     while (ros::ok()) {
-        if (step>=0 && step<trajectory.cols()) {
-            //cout <<"current position: "<< manipulator.get_end_effector_position(interface.getPositions()).transpose()<< endl;
-            //cout << "current angles: "<<interface.getPositions().transpose() << endl;
-            interface.setPosition(trajectory.col(step));
-            //cout << "new position: "<<manipulator.get_end_effector_position(trajectory.col(step)).transpose()<<endl;
-            //cout << "new angles: "<<trajectory.col(step).transpose() << endl;
-            //cout << "--------------------------------------------------"<<endl;
-            
-        }else {
-            if (step>=trajectory.cols() && step <(trajectory.cols()+trajectory2.cols())) {
-                //cout <<"current position: "<< manipulator.get_end_effector_position(interface.getPositions()).transpose()<< endl;
-                //cout << "current angles: "<<interface.getPositions().transpose() << endl;
-                interface.setPosition(trajectory2.col((step-trajectory.cols())));
-                //cout << "new position: "<<manipulator.get_end_effector_position(trajectory2.col((step-trajectory.cols()))).transpose()<<endl;
-                //cout << "new angles: "<<trajectory2.col((step-trajectory.cols())).transpose() << endl;
-                //cout << "--------------------------------------------------"<<endl;
-            }
+        switch(internalState) {
+            case idle:
+                msg.status="Idle";
+                switch (assignedCommand) {
+                    case ef_move:
+                        ROS_INFO("New end effector destination received." );
+                        internalState=planning;
+                        break;
+                    case gripper_adjust:
+                        ROS_INFO("New gripper distance received." );
+                        internalState=gripper_adjusting;
+                        break;
+                    case none:
+                        break;
+                    default:
+                        ROS_INFO("Unknown command. Skipping..." );
+                        break;
+                }
+                break;
+            case planning:
+                msg.status="Planning";
+                ROS_INFO("Starting motion planning..." );
+                jointMotionMatrix=manipulator.compute_trajectory(destinationPose,interface.getPositions(),NODE_FREQUENCY);
+                if (jointMotionMatrix.cols()>0) {
+                    internalState=moving;
+                    currentTrajectoryIndex=0;
+                } else {
+                    internalState=idle;
+                    assignedCommand=none;
+                }
+                ROS_INFO("Motion planning Complete!");
+                ROS_INFO("New destination: {%f, %f, %f, %f, %f, %f}\n",destinationPose(0),destinationPose(1),destinationPose(2),destinationPose(3),destinationPose(4),destinationPose(5));
+            case moving:
+                msg.status="Moving";
+                if (currentTrajectoryIndex<jointMotionMatrix.cols()) {
+                    ROS_INFO("Changing Joint Positions: [%f, %f, %f, %f, %f, %f]",jointMotionMatrix(0,currentTrajectoryIndex),jointMotionMatrix(1,currentTrajectoryIndex),jointMotionMatrix(2,currentTrajectoryIndex),jointMotionMatrix(3,currentTrajectoryIndex),jointMotionMatrix(4,currentTrajectoryIndex),jointMotionMatrix(5,currentTrajectoryIndex));
+                    interface.setPosition(jointMotionMatrix.col(currentTrajectoryIndex));
+                    currentTrajectoryIndex++;
+                } else {
+                    internalState=idle;
+                    assignedCommand=none;
+                }
+                break;
+            case initializing:
+                msg.status="Initializing";
+                if (interface.getSystemStatus()) {
+                    internalState=idle;
+                    assignedCommand=none;
+                    ROS_INFO("Interface connected! Waiting for commands" );
+                }
+                ros::spinOnce();
+                loop_rate.sleep();
+                continue;
+            default:
+                internalState=idle;
+                assignedCommand=none;
+                break;
         }
-        step=step+1;
+        end_effector_position=manipulator.get_end_effector_position(interface.getPositions());
+        msg.x=end_effector_position(0);
+        msg.y=end_effector_position(1);
+        msg.z=end_effector_position(2);
+        msg.phi=end_effector_position(3);
+        msg.theta=end_effector_position(4);
+        msg.psi=end_effector_position(5);
+        mcpStatusPublisher.publish(msg);
         ros::spinOnce();
         loop_rate.sleep();
     }

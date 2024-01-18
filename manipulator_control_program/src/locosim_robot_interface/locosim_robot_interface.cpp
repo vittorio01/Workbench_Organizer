@@ -3,6 +3,9 @@
 void Locosim_robot_interface::initialize(ros::NodeHandle &node) {
     subscriber=node.subscribe("/ur5/joint_states",BUFFER_LENGHT,messageReadHandler);
     sender = node.advertise<std_msgs::Float64MultiArray>("/ur5/joint_group_pos_controller/command", BUFFER_LENGHT);
+    for (int i=0;i<GRIPPER_NUMBER;i++) {
+        lastGripperValues[i]=0;
+    }
 }
 
 bool Locosim_robot_interface::getSystemStatus() {
@@ -52,20 +55,30 @@ JointVector Locosim_robot_interface::getPositions() {
 
 void Locosim_robot_interface::setPosition(const JointVector& targetPosition) {
     std_msgs::Float64MultiArray msg;
-    msg.data.resize(6);
+    msg.data.resize(JOINT_NUMBER+GRIPPER_NUMBER);
     for (int i=0;i<JOINT_NUMBER;i++) {
         msg.data[i]=targetPosition[i];
     }
-    /*
-    msg.data[SHOULDER_PAN_MSG_INDEX]=targetPosition(0);
-    msg.data[SHOULDER_LIFT_MSG_INDEX]=targetPosition(1);
-    msg.data[ELBOW_MSG_INDEX ]=targetPosition(2);
-    msg.data[WRIST_1_MSG_INDEX]=targetPosition(3);
-    msg.data[WRIST_2_MSG_INDEX]=targetPosition(4);
-    msg.data[WRIST_3_MSG_INDEX]=targetPosition(5);
-    */
+    for (int i=0;i<GRIPPER_NUMBER;i++) {
+        msg.data[JOINT_NUMBER+i]=lastGripperValues[i];
+    }
     sender.publish(msg);
 }
+
+void Locosim_robot_interface::setPosition(const JointVector& targetPosition,const double gripperValues[]) {
+    std_msgs::Float64MultiArray msg;
+    msg.data.resize(JOINT_NUMBER+GRIPPER_NUMBER);
+    for (int i=0;i<JOINT_NUMBER;i++) {
+        msg.data[i]=targetPosition[i];
+    }
+    for (int i=0;i<GRIPPER_NUMBER;i++) {
+        msg.data[JOINT_NUMBER+i]=gripperValues[i];
+        lastGripperValues[i]=gripperValues[i];
+    }
+    sender.publish(msg);
+    
+}
+
 
 ostream& operator<<(ostream& os,const Locosim_robot_interface& interface) {
     for (int i=0;i<(JOINTS_NUMBER);i++) {

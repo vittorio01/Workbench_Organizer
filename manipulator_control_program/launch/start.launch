@@ -2,6 +2,7 @@
 <launch>
     <arg name="world_name" value="tavolo_brick.world"/>
     <arg name="use_torque_control" value="false"/>
+    <arg name="gripper" default="true" />
     <arg name="soft_gripper" default="true" />
     <arg name="rviz" default="false" />
  

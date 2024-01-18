@@ -51,8 +51,8 @@ add_message_files(
   DIRECTORY 
   msg 
   FILES
-
-  
+  mcp_command.msg
+  mcp_status.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -112,6 +112,7 @@ catkin_package(
    roscpp 
    rospy 
    std_msgs
+   message_runtime 
 #  DEPENDS system_lib
 )
 
