@@ -98,7 +98,7 @@ using Eigen::VectorXd;
 #define TRAJECTORY_MIN_REQUIRED_TIME 0.2
 
 /*Home position angle values*/
-#define BASE_JOINT_HOME_POSITION            1.57
+#define BASE_JOINT_HOME_POSITION            -1.57
 #define SHOULDER_JOINT_HOME_POSITION        -0.785
 #define ELBOW_JOINT_HOME_POSITION           -2.355
 #define WRIST1_JOINT_HOME_POSITION          -1.56

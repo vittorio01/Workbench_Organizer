@@ -81,7 +81,7 @@ generate_messages(
 
 ## To declare and build dynamic reconfigure parameters within this
 ## package, follow these steps:
-## * In the file package.xml:
+## * In the file package.xml:generate_messages_cpp
 ##   * add a build_depend and a exec_depend tag for "dynamic_reconfigure"
 ## * In this file (CMakeLists.txt):
 ##   * add "dynamic_reconfigure" to
@@ -143,6 +143,7 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(manipulator_control_program_node src/manipulator_control_program_node.cpp)
 target_link_libraries(manipulator_control_program_node ${catkin_LIBRARIES})
+add_dependencies(manipulator_control_program_node manipulator_control_program_generate_messages_cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
